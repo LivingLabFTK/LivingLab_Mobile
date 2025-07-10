@@ -3,16 +3,19 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import 'package:workmanager/workmanager.dart';
+
+final Logger _logger = Logger('BackgroundService');
 
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
-    print("Background fetch started");
+    _logger.info("Background fetch started");
 
     // Inisialisasi Firebase
     await Firebase.initializeApp();
 
-    print("Firebase initialized");
+    _logger.info("Firebase initialized");
 
     final DatabaseReference monitoringRef = FirebaseDatabase.instanceFor(
       app: Firebase.app(),
@@ -28,7 +31,7 @@ void callbackDispatcher() {
         FirebaseFirestore.instance.collection('NutrisiLog');
 
     try {
-      print("Fetching data from Firebase Realtime Database");
+      _logger.info("Fetching data from Firebase Realtime Database");
 
       // Get the latest folder key
       final snapshot = await monitoringRef.orderByKey().limitToLast(1).get();
@@ -36,7 +39,7 @@ void callbackDispatcher() {
       final latestDataSnapshot = await monitoringRef.child(latestKey).get();
       final latestData = latestDataSnapshot.value as Map<String, dynamic>;
 
-      print("Data fetched successfully");
+      _logger.info("Data fetched successfully");
 
       // Fetching the values from the latest data
       final suhu = latestData['Suhu'];
@@ -51,7 +54,7 @@ void callbackDispatcher() {
           'timestamp': Timestamp.now(),
         };
         await suhuKelembabanFirestoreRef.add(suhuKelembabanLog);
-        print("Suhu dan Kelembaban data saved to Firestore");
+        _logger.info("Suhu dan Kelembaban data saved to Firestore");
       }
 
       if (ph != null) {
@@ -60,7 +63,7 @@ void callbackDispatcher() {
           'timestamp': Timestamp.now(),
         };
         await phFirestoreRef.add(phLog);
-        print("Ph data saved to Firestore");
+        _logger.info("Ph data saved to Firestore");
       }
 
       if (nutrisi != null) {
@@ -69,13 +72,13 @@ void callbackDispatcher() {
           'timestamp': Timestamp.now(),
         };
         await nutrisiFirestoreRef.add(nutrisiLog);
-        print("Nutrisi data saved to Firestore");
+        _logger.info("Nutrisi data saved to Firestore");
       }
     } catch (e) {
-      print('Error fetching data from Realtime Database: $e');
+      _logger.info('Error fetching data from Realtime Database: $e');
     }
 
-    print("Background fetch completed");
+    _logger.info("Background fetch completed");
 
     return Future.value(true);
   });

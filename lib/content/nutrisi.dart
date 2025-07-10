@@ -9,6 +9,16 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'package:excel/excel.dart';
+import 'package:logging/logging.dart';
+
+final Logger _logger = Logger('Nutrisi');
+
+void setupLogging() {
+  Logger.root.level = Level.ALL;
+  Logger.root.onRecord.listen((record) {
+    print('${record.level.name}: ${record.time}: ${record.message}');
+  });
+}
 
 class NutrisiLog extends StatefulWidget {
   const NutrisiLog({super.key});
@@ -50,7 +60,7 @@ class _NutrisiLogState extends State<NutrisiLog> {
             .toList();
       });
     } catch (e) {
-      print('Error fetching logs from Firestore: $e');
+      _logger.info('Error fetching logs from Firestore: $e');
     }
   }
 
@@ -79,7 +89,7 @@ class _NutrisiLogState extends State<NutrisiLog> {
       await _firestoreRef.doc(id).delete();
       _fetchLogs();
     } catch (e) {
-      print('Error deleting log: $e');
+      _logger.info('Error deleting log: $e');
     }
   }
 
@@ -93,7 +103,7 @@ class _NutrisiLogState extends State<NutrisiLog> {
       await batch.commit();
       _fetchLogs();
     } catch (e) {
-      print('Error deleting all logs: $e');
+      _logger.info('Error deleting all logs: $e');
     }
   }
 

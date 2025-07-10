@@ -5,6 +5,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hydrohealth/content/weather.dart';
 import 'package:hydrohealth/services/notification_helper.dart';
 import 'package:intl/intl.dart';
+import 'package:logging/logging.dart';
+
+final Logger _logger = Logger('Home');
+
+void setupLogging() {
+  Logger.root.level = Level.ALL;
+  Logger.root.onRecord.listen((record) {
+    _logger.info('${record.level.name}: ${record.time}: ${record.message}');
+  });
+}
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -89,9 +99,9 @@ class _HomeState extends State<Home> {
   }
 
   void _checkAndSendNotifications() {
-    print('Checking notifications...');
-    print('Current pH: $ph');
-    print('Current Nutrisi: $nutrisi');
+    _logger.info('Checking notifications...');
+    _logger.info('Current pH: $ph');
+    _logger.info('Current Nutrisi: $nutrisi');
 
     // if (double.tryParse(ph) != null && double.parse(ph) < 5) {
     //   print('pH below 5, sending notification...');

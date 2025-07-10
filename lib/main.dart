@@ -6,6 +6,7 @@ import 'package:hydrohealth/pages/selection_page.dart';
 import 'package:hydrohealth/utils/colors.dart';
 import 'firebase_options.dart';
 import 'package:workmanager/workmanager.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -17,7 +18,8 @@ void callbackDispatcher() {
 }
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -35,7 +37,7 @@ Future<void> main() async {
   Workmanager().registerPeriodicTask(
     "1",
     "Update Log History",
-    frequency: const Duration(minutes: 15),
+    frequency: const Duration(minutes: 10),
   );
 
   const AndroidInitializationSettings initializationSettingsAndroid =
@@ -47,6 +49,9 @@ Future<void> main() async {
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
   runApp(const MyApp());
+
+  await Future.delayed(const Duration(seconds: 2));
+  FlutterNativeSplash.remove();
 }
 
 class MyApp extends StatelessWidget {

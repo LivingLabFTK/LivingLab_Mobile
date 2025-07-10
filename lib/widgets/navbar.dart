@@ -29,16 +29,12 @@ class _CircleNavBarPageState extends State<CircleNavBarPage>
       bottomNavigationBar: CircleNavBar(
         activeIcons: const [
           Icon(Icons.home, color: Color.fromARGB(255, 0, 0, 0)),
-          Icon(Icons.chat, color: Color.fromARGB(255, 0, 0, 0)),
-          Icon(Icons.camera, color: Color.fromARGB(255, 0, 0, 0)),
           Icon(Icons.history, color: Color.fromARGB(255, 0, 0, 0)),
           Icon(Icons.person, color: Color.fromARGB(255, 0, 0, 0)),
         ],
         inactiveIcons: const [
           Text("Home"),
-          Text("Chat"),
-          Icon(Icons.camera_alt_sharp, color: Color.fromARGB(255, 0, 0, 0)),
-          Text("History"),
+          Text("Monitoring"),
           Text("Account"),
         ],
         color: const Color.fromARGB(255, 159, 208, 122),

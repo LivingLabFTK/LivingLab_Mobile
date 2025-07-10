@@ -121,16 +121,16 @@ class CameraState extends State<Camera> {
                 });
                 try {
                   final response = await apiService.uploadImage(imageFile!);
-                  if (!mounted) return;
+                  if (!mounted) return; // Cek mounted
                   setState(() {
                     result = response;
                     isLoading = false;
                   });
                 } catch (e) {
-                  if (!mounted) return;
                   setState(() {
                     isLoading = false;
                   });
+                  if (!mounted) return; // Cek mounted sebelum ScaffoldMessenger
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Error: $e')),
                   );

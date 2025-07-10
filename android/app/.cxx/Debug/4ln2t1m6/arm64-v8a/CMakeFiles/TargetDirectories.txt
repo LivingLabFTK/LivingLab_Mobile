@@ -1,0 +1,2 @@
+/Users/zulvanavito/Lokal/Pemrograman/hydrohealth_app/android/app/.cxx/Debug/4ln2t1m6/arm64-v8a/CMakeFiles/edit_cache.dir
+/Users/zulvanavito/Lokal/Pemrograman/hydrohealth_app/android/app/.cxx/Debug/4ln2t1m6/arm64-v8a/CMakeFiles/rebuild_cache.dir

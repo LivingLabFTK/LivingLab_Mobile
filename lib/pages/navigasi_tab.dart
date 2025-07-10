@@ -1,6 +1,6 @@
 import 'package:buttons_tabbar/buttons_tabbar.dart';
 import 'package:flutter/material.dart';
-import 'package:hydrohealth/content/Suhu_Kelembaban.dart';
+import 'package:hydrohealth/content/suhu_kelembaban.dart';
 import 'package:hydrohealth/content/nutrisi.dart';
 import 'package:hydrohealth/content/ph.dart';
 

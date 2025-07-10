@@ -108,9 +108,9 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
     var excel = Excel.createExcel();
     Sheet sheetObject = excel['LogHistory'];
     sheetObject.appendRow([
-      const TextCellValue('Timestamp'),
-      const TextCellValue('Suhu (°C)'),
-      const TextCellValue('Kelembaban (%)')
+      TextCellValue('Timestamp'),
+      TextCellValue('Suhu (°C)'),
+      TextCellValue('Kelembaban (%)')
     ]); // Header
 
     for (var log in _logs) {

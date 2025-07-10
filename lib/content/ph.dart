@@ -106,7 +106,7 @@ class _PhLogState extends State<PhLog> {
     var excel = Excel.createExcel();
     Sheet sheetObject = excel['LogHistory'];
     sheetObject.appendRow([
-      const TextCellValue('Timestamp'),
+      TextCellValue('Timestamp'),
       TextCellValue('pH Value')
     ]); // Header
 

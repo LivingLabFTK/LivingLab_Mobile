@@ -71,7 +71,7 @@ dependencies:
   shared_preferences: ^2.2.3
   speedometer_chart: ^1.0.8
   url_launcher: ^6.3.0
-  workmanager: ^0.5.2
+  workmanager: ^0.6.0
 
 dev_dependencies:
   build_runner: ^2.4.10

@@ -112,8 +112,8 @@ class _NutrisiLogState extends State<NutrisiLog> {
     var excel = Excel.createExcel();
     Sheet sheetObject = excel['LogHistory'];
     sheetObject.appendRow([
-      const TextCellValue('Timestamp'),
-      const TextCellValue('Nutrisi Value')
+      TextCellValue('Timestamp'),
+      TextCellValue('Nutrisi Value')
     ]); // Header
 
     for (var log in _logs) {

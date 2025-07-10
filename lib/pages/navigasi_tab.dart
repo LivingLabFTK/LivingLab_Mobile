@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:hydrohealth/content/suhu_kelembaban.dart';
 import 'package:hydrohealth/content/nutrisi.dart';
 import 'package:hydrohealth/content/ph.dart';
+import '../utils/colors.dart';
 
 class NavigasiTab extends StatefulWidget {
   const NavigasiTab({super.key});
@@ -15,29 +16,26 @@ class NavigasiTab extends StatefulWidget {
 class _NavigasiTabState extends State<NavigasiTab> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('HISTORY'),
-        backgroundColor: const Color.fromRGBO(153, 188, 133, 1),
-      ),
-      body: SafeArea(
-        child: DefaultTabController(
-          length: 3,
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        body: SafeArea(
           child: Container(
-            color: const Color.fromRGBO(225, 240, 218, 1),
+            color: AppColors.background,
             child: Column(
               children: <Widget>[
+                const SizedBox(height: 16),
                 ButtonsTabBar(
-                  backgroundColor: const Color.fromRGBO(153, 188, 133, 1),
-                  unselectedBackgroundColor:
-                      const Color.fromRGBO(225, 240, 218, 1),
-                  unselectedLabelStyle: const TextStyle(color: Colors.black),
+                  backgroundColor: AppColors.primary,
+                  unselectedBackgroundColor: Colors.white,
+                  unselectedLabelStyle:
+                  const TextStyle(color: AppColors.text),
                   labelStyle: const TextStyle(
                       color: Colors.white, fontWeight: FontWeight.bold),
                   tabs: const [
                     Tab(
                       icon: Icon(Icons.thermostat),
-                      text: "SUHU",
+                      text: "Suhu",
                     ),
                     Tab(
                       icon: Icon(Icons.opacity),
@@ -45,7 +43,7 @@ class _NavigasiTabState extends State<NavigasiTab> {
                     ),
                     Tab(
                       icon: Icon(Icons.science),
-                      text: "NUTRISI",
+                      text: "Nutrisi",
                     ),
                   ],
                 ),

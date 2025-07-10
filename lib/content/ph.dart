@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:hydrohealth/services/notification_helper.dart';
+import 'package:hydrohealth/utils/colors.dart';
 import 'package:speedometer_chart/speedometer_chart.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
@@ -17,7 +18,7 @@ final Logger _logger = Logger('PH');
 void setupLogging() {
   Logger.root.level = Level.ALL;
   Logger.root.onRecord.listen((record) {
-    print('${record.level.name}: ${record.time}: ${record.message}');
+    _logger.info('${record.level.name}: ${record.time}: ${record.message}');
   });
 }
 
@@ -105,6 +106,7 @@ class _PhLogState extends State<PhLog> {
     if (await Permission.storage.request().isGranted) {
       _exportLogsToExcel();
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Storage permission is required to save logs.')),
@@ -137,11 +139,13 @@ class _PhLogState extends State<PhLog> {
           ..createSync(recursive: true)
           ..writeAsBytesSync(fileBytes);
 
+        if (!mounted) return;
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Logs exported to $path')));
 
         await OpenFile.open(path);
       } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Error writing file: $e')));
       }
@@ -160,7 +164,7 @@ class _PhLogState extends State<PhLog> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE1F0DA),
+      backgroundColor: AppColors.background,
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -168,11 +172,11 @@ class _PhLogState extends State<PhLog> {
               margin: const EdgeInsets.all(16.0),
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: const Color(0xFF99BC85),
+                color: AppColors.background,
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.5),
+                    color: Colors.grey.withValues(alpha: 0.5),
                     spreadRadius: 5,
                     blurRadius: 7,
                     offset: const Offset(0, 3),
@@ -289,11 +293,11 @@ class _PhLogState extends State<PhLog> {
               margin: const EdgeInsets.all(16.0),
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: const Color(0xFF99BC85),
+                color: AppColors.background,
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.5),
+                    color: Colors.grey.withValues(alpha: 0.5),
                     spreadRadius: 5,
                     blurRadius: 7,
                     offset: const Offset(0, 3),
@@ -355,7 +359,7 @@ class _PhLogState extends State<PhLog> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showOptionsDialog,
-        backgroundColor: const Color(0xFF99BC85),
+        backgroundColor: AppColors.primary,
         child: const Icon(Icons.more_vert, color: Colors.white),
       ),
     );

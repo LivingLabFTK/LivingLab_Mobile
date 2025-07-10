@@ -11,6 +11,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'package:logging/logging.dart';
 
+import '../utils/colors.dart';
+
 final Logger _logger = Logger('SuhuKelembapan');
 
 void setupLogging() {
@@ -107,6 +109,7 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
     if (await Permission.storage.request().isGranted) {
       _exportLogsToExcel();
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Storage permission is required to save logs.')),
@@ -138,13 +141,14 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
     if (fileBytes != null) {
       try {
         final directory = await getExternalStorageDirectory();
+        if (!mounted) return;
         final path = await _showSaveFileDialog(context, directory!.path);
         if (path != null) {
           // ignore: unused_local_variable
-          final file = File(path)
+          if (!mounted) return;
+          File(path)
             ..createSync(recursive: true)
             ..writeAsBytesSync(fileBytes);
-
           ScaffoldMessenger.of(context)
               .showSnackBar(SnackBar(content: Text('Logs exported to $path')));
 
@@ -152,6 +156,7 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
           await OpenFile.open(path);
         }
       } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Error writing file: $e')));
       }
@@ -233,7 +238,7 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE1F0DA),
+      backgroundColor: AppColors.background,
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -241,7 +246,7 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
               margin: const EdgeInsets.all(16.0),
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: const Color(0xFF99BC85),
+                color: AppColors.background,
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: [
                   BoxShadow(
@@ -332,7 +337,7 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
                                   padding: const EdgeInsets.only(top: 8.0),
                                   child: Text(
                                     _formatTimeLabel(
-                                        value), // Use formatted label
+                                        value),
                                     style: const TextStyle(
                                       color: Color(0xFF68737D),
                                       fontWeight: FontWeight.bold,
@@ -351,7 +356,7 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
                                 return Padding(
                                   padding: const EdgeInsets.only(right: 8.0),
                                   child: Text(
-                                    '${value.toInt()}°C', // Display as temperature values
+                                    '${value.toInt()}°C',
                                     style: const TextStyle(
                                         color: Color(0xFF68737D),
                                         fontWeight: FontWeight.bold,
@@ -469,7 +474,7 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
               margin: const EdgeInsets.all(16.0),
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: const Color(0xFF99BC85),
+                color: AppColors.background,
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: [
                   BoxShadow(
@@ -536,7 +541,7 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showOptionsDialog(context),
-        backgroundColor: const Color(0xFF99BC85),
+        backgroundColor: AppColors.primary,
         child: const Icon(Icons.more_vert, color: Colors.white),
       ),
     );

@@ -11,6 +11,8 @@ import 'package:open_file/open_file.dart';
 import 'package:excel/excel.dart';
 import 'package:logging/logging.dart';
 
+import '../utils/colors.dart';
+
 final Logger _logger = Logger('Nutrisi');
 
 void setupLogging() {
@@ -110,8 +112,8 @@ class _NutrisiLogState extends State<NutrisiLog> {
   Future<void> _requestPermission() async {
     if (await Permission.storage.request().isGranted) {
       _exportLogsToExcel();
-      if (!mounted) return;
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Storage permission is required to save logs.')),
@@ -166,7 +168,7 @@ class _NutrisiLogState extends State<NutrisiLog> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE1F0DA),
+      backgroundColor: AppColors.background,
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -174,11 +176,11 @@ class _NutrisiLogState extends State<NutrisiLog> {
               margin: const EdgeInsets.all(16.0),
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: const Color(0xFF99BC85),
+                color: AppColors.background,
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.5),
+                    color: Colors.grey.withValues(alpha: 0.5),
                     spreadRadius: 5,
                     blurRadius: 7,
                     offset: const Offset(0, 3),
@@ -189,7 +191,7 @@ class _NutrisiLogState extends State<NutrisiLog> {
                 children: [
                   const Text(
                     'Kondisi Saat ini:',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
                   ),
                   const SizedBox(height: 10),
                   const Row(
@@ -227,7 +229,7 @@ class _NutrisiLogState extends State<NutrisiLog> {
                     maxValue: 1800,
                     value: _currentNutrisiValue,
                     graphColor: const [Colors.red, Colors.yellow, Colors.green],
-                    pointerColor: Colors.black,
+                    pointerColor: AppColors.text,
                   ),
                   const SizedBox(height: 10),
                   StreamBuilder(
@@ -272,11 +274,11 @@ class _NutrisiLogState extends State<NutrisiLog> {
               margin: const EdgeInsets.all(16.0),
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: const Color(0xFF99BC85),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.5),
+                    color: Colors.grey.withValues(alpha: 0.5),
                     spreadRadius: 5,
                     blurRadius: 7,
                     offset: const Offset(0, 3),
@@ -287,7 +289,7 @@ class _NutrisiLogState extends State<NutrisiLog> {
                 children: [
                   const Text(
                     'Log History',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
                   ),
                   ListView.builder(
                     shrinkWrap: true,
@@ -304,7 +306,7 @@ class _NutrisiLogState extends State<NutrisiLog> {
                         subtitle: Text('Timestamp: $formattedDate'),
                         trailing: IconButton(
                           icon: const Icon(Icons.delete_sharp,
-                              color: Color.fromARGB(255, 0, 0, 0)),
+                              color: Colors.white),
                           onPressed: () => _deleteLog(log['id']),
                         ),
                       );
@@ -338,7 +340,7 @@ class _NutrisiLogState extends State<NutrisiLog> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showOptionsDialog,
-        backgroundColor: const Color(0xFF99BC85),
+        backgroundColor: AppColors.primary,
         child: const Icon(Icons.more_vert, color: Colors.white),
       ),
     );

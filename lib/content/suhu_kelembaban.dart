@@ -16,7 +16,7 @@ final Logger _logger = Logger('SuhuKelembapan');
 void setupLogging() {
   Logger.root.level = Level.ALL;
   Logger.root.onRecord.listen((record) {
-    print('${record.level.name}: ${record.time}: ${record.message}');
+    _logger.info('${record.level.name}: ${record.time}: ${record.message}');
   });
 }
 

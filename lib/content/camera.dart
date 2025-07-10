@@ -8,10 +8,10 @@ class Camera extends StatefulWidget {
   const Camera({super.key});
 
   @override
-  _CameraState createState() => _CameraState();
+  CameraState createState() => CameraState();
 }
 
-class _CameraState extends State<Camera> {
+class CameraState extends State<Camera> {
   File? imageFile;
   Map<String, dynamic>? result;
   bool isLoading = false;
@@ -45,7 +45,7 @@ class _CameraState extends State<Camera> {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.5),
+                    color: Colors.grey.withValues(alpha: 0.5),
                     spreadRadius: 2,
                     blurRadius: 5,
                     offset: const Offset(0, 3),
@@ -79,7 +79,7 @@ class _CameraState extends State<Camera> {
                       left: 10,
                       child: Container(
                         padding: const EdgeInsets.all(8),
-                        color: Colors.black54,
+                        color: Colors.black.withValues(alpha: 0.541),
                         child: Text(
                           '${result!['predicted_class']} (${(result!['probability'] * 100).toStringAsFixed(2)}%)',
                           style: const TextStyle(
@@ -92,11 +92,11 @@ class _CameraState extends State<Camera> {
                     ),
                   if (isLoading)
                     Container(
-                      color: Colors.black54,
+                      color: Colors.black.withValues(alpha: 0.541),
                       child: const Center(
                         child: CircularProgressIndicator(
                           valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
+                          AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       ),
                     ),
@@ -121,11 +121,13 @@ class _CameraState extends State<Camera> {
                 });
                 try {
                   final response = await apiService.uploadImage(imageFile!);
+                  if (!mounted) return;
                   setState(() {
                     result = response;
                     isLoading = false;
                   });
                 } catch (e) {
+                  if (!mounted) return;
                   setState(() {
                     isLoading = false;
                   });
@@ -151,7 +153,7 @@ class _CameraState extends State<Camera> {
         color: const Color.fromRGBO(153, 188, 133, 1.0),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.5),
+            color: Colors.grey.withValues(alpha: 0.5),
             spreadRadius: 2,
             blurRadius: 5,
             offset: const Offset(0, 3),

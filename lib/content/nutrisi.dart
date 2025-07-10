@@ -16,7 +16,7 @@ final Logger _logger = Logger('Nutrisi');
 void setupLogging() {
   Logger.root.level = Level.ALL;
   Logger.root.onRecord.listen((record) {
-    print('${record.level.name}: ${record.time}: ${record.message}');
+    _logger.info('${record.level.name}: ${record.time}: ${record.message}');
   });
 }
 
@@ -141,7 +141,7 @@ class _NutrisiLogState extends State<NutrisiLog> {
       try {
         final directory = await getExternalStorageDirectory();
         final path = '${directory!.path}/NutrisiLog.xlsx';
-        final file = File(path)
+        File(path)
           ..createSync(recursive: true)
           ..writeAsBytesSync(fileBytes);
 

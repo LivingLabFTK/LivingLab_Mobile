@@ -110,6 +110,7 @@ class _NutrisiLogState extends State<NutrisiLog> {
   Future<void> _requestPermission() async {
     if (await Permission.storage.request().isGranted) {
       _exportLogsToExcel();
+      if (!mounted) return;
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -140,6 +141,7 @@ class _NutrisiLogState extends State<NutrisiLog> {
     if (fileBytes != null) {
       try {
         final directory = await getExternalStorageDirectory();
+        if (!mounted) return;
         final path = '${directory!.path}/NutrisiLog.xlsx';
         File(path)
           ..createSync(recursive: true)
@@ -149,6 +151,7 @@ class _NutrisiLogState extends State<NutrisiLog> {
             .showSnackBar(SnackBar(content: Text('Logs exported to $path')));
 
         await OpenFile.open(path);
+        if (!mounted) return;
       } catch (e) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Error writing file: $e')));

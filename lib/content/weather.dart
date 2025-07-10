@@ -2,6 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:hydrohealth/models/weather_models.dart';
 import 'package:hydrohealth/services/weather_service.dart';
 import 'package:lottie/lottie.dart';
+import 'package:logging/logging.dart';
+
+final Logger _logger = Logger('SuhuKelembapan');
+
+void setupLogging() {
+  Logger.root.level = Level.ALL;
+  Logger.root.onRecord.listen((record) {
+    _logger.info('${record.level.name}: ${record.time}: ${record.message}');
+  });
+}
 
 class WeatherPage extends StatefulWidget {
   const WeatherPage({super.key});
@@ -28,7 +38,7 @@ class _WeatherPageState extends State<WeatherPage> {
         _weather = weather;
       });
     } catch (e) {
-      print(e);
+      _logger.info(e);
     }
   }
 

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../utils/colors.dart';
+
 
 class ComingSoonPage extends StatelessWidget {
   const ComingSoonPage({super.key});
@@ -6,31 +8,31 @@ class ComingSoonPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromRGBO(225, 240, 218, 1),
+      backgroundColor: AppColors.background,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
+              Icon(
                 Icons.construction_outlined,
                 size: 100,
-                color: Colors.orange,
+                color: AppColors.secondary,
               ),
               const SizedBox(height: 20),
               const Text(
-                'Feature Under Construction',
+                'Fitur Sedang Dibangun',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Color.fromARGB(255, 44, 95, 0),
+                  color: AppColors.text,
                 ),
               ),
               const SizedBox(height: 10),
               const Text(
-                'Our Smart Fish monitoring system is being developed and will be available soon. Stay tuned!',
+                'Sistem pemantauan Smart Fish kami sedang dikembangkan dan akan segera tersedia. Nantikan!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
@@ -43,11 +45,11 @@ class ComingSoonPage extends StatelessWidget {
                   Navigator.of(context).pop();
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
                 ),
-                child: const Text('Go Back'),
+                child: const Text('Kemmbali'),
               ),
             ],
           ),

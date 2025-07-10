@@ -245,7 +245,7 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.5),
+                    color: Colors.grey.withValues(alpha: 0.5),
                     spreadRadius: 5,
                     blurRadius: 7,
                     offset: const Offset(0, 3), // changes position of shadow
@@ -373,8 +373,8 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
                               show: true,
                               gradient: LinearGradient(
                                 colors: [
-                                  Colors.red.withOpacity(0.3),
-                                  Colors.red.withOpacity(0.0),
+                                  Colors.red.withValues(alpha: 0.3),
+                                  Colors.red.withValues(alpha: 0.0),
                                 ],
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
@@ -448,8 +448,8 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
                               show: true,
                               gradient: LinearGradient(
                                 colors: [
-                                  Colors.blue.withOpacity(0.3),
-                                  Colors.blue.withOpacity(0.0),
+                                  Colors.blue.withValues(alpha: 0.3),
+                                  Colors.blue.withValues(alpha: 0.0),
                                 ],
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
@@ -473,7 +473,7 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.5),
+                    color: Colors.grey.withValues(alpha: 0.5),
                     spreadRadius: 5,
                     blurRadius: 7,
                     offset: const Offset(0, 3),

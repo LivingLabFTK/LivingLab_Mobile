@@ -10,6 +10,16 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'package:excel/excel.dart';
+import 'package:logging/logging.dart';
+
+final Logger _logger = Logger('PH');
+
+void setupLogging() {
+  Logger.root.level = Level.ALL;
+  Logger.root.onRecord.listen((record) {
+    print('${record.level.name}: ${record.time}: ${record.message}');
+  });
+}
 
 class PhLog extends StatefulWidget {
   const PhLog({super.key});
@@ -50,7 +60,7 @@ class _PhLogState extends State<PhLog> {
             .toList();
       });
     } catch (e) {
-      print('Error fetching logs from Firestore: $e');
+      _logger.info('Error fetching logs from Firestore: $e');
     }
   }
 
@@ -73,7 +83,7 @@ class _PhLogState extends State<PhLog> {
       await _firestoreRef.doc(id).delete();
       _fetchLogs();
     } catch (e) {
-      print('Error deleting log: $e');
+      _logger.info('Error deleting log: $e');
     }
   }
 
@@ -87,7 +97,7 @@ class _PhLogState extends State<PhLog> {
       await batch.commit();
       _fetchLogs();
     } catch (e) {
-      print('Error deleting all logs: $e');
+      _logger.info('Error deleting all logs: $e');
     }
   }
 
@@ -123,7 +133,7 @@ class _PhLogState extends State<PhLog> {
       try {
         final directory = await getExternalStorageDirectory();
         final path = '${directory!.path}/PhLog.xlsx';
-        final file = File(path)
+        File(path)
           ..createSync(recursive: true)
           ..writeAsBytesSync(fileBytes);
 

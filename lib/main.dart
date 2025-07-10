@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:hydrohealth/pages/selection_page.dart';
+import 'package:hydrohealth/utils/colors.dart';
 import 'firebase_options.dart';
-import 'package:hydrohealth/pages/dashboard_page.dart';
 import 'package:workmanager/workmanager.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -45,7 +46,6 @@ Future<void> main() async {
 
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
-  // Run the app
   runApp(const MyApp());
 }
 
@@ -56,13 +56,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: "Hydro Health",
+      title: "Living Lab",
       theme: ThemeData(
         fontFamily: 'SFMono',
         primarySwatch: Colors.lightGreen,
-        primaryColor: const Color.fromRGBO(255, 240, 218, 1.0),
+        primaryColor: AppColors.primary,
       ),
-      home: const Dashboard(),
+      home: const SelectionPage(),
       debugShowCheckedModeBanner: false,
     );
   }

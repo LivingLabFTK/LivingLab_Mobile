@@ -15,7 +15,7 @@ class ComingSoonPage extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
+              const Icon(
                 Icons.construction_outlined,
                 size: 100,
                 color: AppColors.secondary,

@@ -59,6 +59,7 @@ class _TanamanState extends State<Tanaman> {
         'plantingDate': _selectedPlantingDate,
         'harvestDate': _selectedHarvestDate,
       });
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Plant information saved successfully')),
       );

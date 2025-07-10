@@ -13,10 +13,10 @@ class ButtonWeb extends StatelessWidget {
       style: ButtonStyle(
           // ignore: deprecated_member_use
           foregroundColor: MaterialStateProperty.all<Color>(
-              const Color.fromRGBO(153, 188, 133, 1.0)),
+              const Color.fromRGBO(124, 197, 41, 1.0)),
           // ignore: deprecated_member_use
           backgroundColor: MaterialStateProperty.all<Color>(
-              const Color.fromRGBO(255, 255, 255, 1)),
+              const Color.fromRGBO(245, 245, 245, 1.0)),
           // ignore: deprecated_member_use
           shape: MaterialStateProperty.all<RoundedRectangleBorder>(
               RoundedRectangleBorder(

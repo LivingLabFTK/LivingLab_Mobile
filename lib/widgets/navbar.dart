@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:circle_nav_bar/circle_nav_bar.dart';
+import '../utils/colors.dart';
 
 class CircleNavBarPage extends StatefulWidget {
   const CircleNavBarPage({super.key, required this.pages});
@@ -28,16 +29,17 @@ class _CircleNavBarPageState extends State<CircleNavBarPage>
       extendBody: true,
       bottomNavigationBar: CircleNavBar(
         activeIcons: const [
-          Icon(Icons.home, color: Color.fromARGB(255, 0, 0, 0)),
-          Icon(Icons.history, color: Color.fromARGB(255, 0, 0, 0)),
-          Icon(Icons.person, color: Color.fromARGB(255, 0, 0, 0)),
+          Icon(Icons.home, color: AppColors.background),
+          Icon(Icons.computer, color: AppColors.background),
+          Icon(Icons.person, color: AppColors.background),
         ],
         inactiveIcons: const [
-          Text("Home"),
-          Text("Monitoring"),
-          Text("Account"),
+          Text("Home", style: TextStyle(color: Color.fromRGBO(245, 245, 245, 1.0), fontWeight: FontWeight.bold),),
+          Text("Monitoring", style: TextStyle(color: Color.fromRGBO(245, 245, 245, 1.0), fontWeight: FontWeight.bold),),
+          Text("Account", style: TextStyle(color: Color.fromRGBO(245, 245, 245, 1.0), fontWeight: FontWeight.bold),),
         ],
-        color: const Color.fromARGB(255, 159, 208, 122),
+        color: AppColors.primary,
+        circleColor: AppColors.primary,
         height: 60,
         circleWidth: 60,
         activeIndex: _tabIndex,
@@ -47,14 +49,14 @@ class _CircleNavBarPageState extends State<CircleNavBarPage>
           });
           _pageController.jumpToPage(_tabIndex);
         },
-        padding: const EdgeInsets.only(left: 10, right: 10, bottom: 6),
+
         cornerRadius: const BorderRadius.only(
           topLeft: Radius.circular(8),
           topRight: Radius.circular(8),
           bottomRight: Radius.circular(24),
           bottomLeft: Radius.circular(24),
         ),
-        shadowColor: const Color.fromRGBO(68, 208, 140, 1),
+        shadowColor: AppColors.secondary.withValues(alpha: 0.5),
         elevation: 10,
       ),
       body: PageView(

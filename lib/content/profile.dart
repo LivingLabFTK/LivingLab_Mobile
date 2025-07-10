@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:hydrohealth/content/tanaman.dart';
+import 'package:hydrohealth/utils/colors.dart';
 import 'package:hydrohealth/widgets/button_web.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:hydrohealth/widgets/costume_button.dart';
@@ -72,7 +73,7 @@ class _ProfileState extends State<Profile> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromRGBO(225, 240, 218, 1),
+      backgroundColor: AppColors.background,
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -97,8 +98,7 @@ class _ProfileState extends State<Profile> {
               const SizedBox(height: 10),
               _buildEditableItem(
                   'Phone', _phoneController, CupertinoIcons.phone),
-              const SizedBox(height: 10),
-              const SizedBox(height: 20),
+              const SizedBox(height: 50),
               SizedBox(
                 width: double.infinity,
                 child: CostumeButton(
@@ -123,7 +123,7 @@ class _ProfileState extends State<Profile> {
                   text: 'Save',
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 child:
@@ -145,7 +145,7 @@ class _ProfileState extends State<Profile> {
         boxShadow: [
           BoxShadow(
             offset: const Offset(0, 5),
-            color: const Color.fromARGB(255, 44, 95, 0).withOpacity(.2),
+            color: const Color.fromARGB(255, 44, 95, 0).withValues(alpha: .2),
             spreadRadius: 2,
             blurRadius: 10,
           ),

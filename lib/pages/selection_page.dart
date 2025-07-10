@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:hydrohealth/pages/coming_soon_page.dart';
 import 'package:hydrohealth/pages/dashboard_page.dart';
+import 'package:hydrohealth/pages/coming_soon_page.dart';
 
+import '../utils/colors.dart';
 
 class SelectionPage extends StatelessWidget {
   const SelectionPage({super.key});
@@ -9,7 +10,7 @@ class SelectionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromRGBO(245, 245, 240, 1.0),
+      backgroundColor: AppColors.background, // <-- DIUBAH
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -18,22 +19,22 @@ class SelectionPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Image.asset(
-                'assets/images/LivingLabLogo.png'
+                  'assets/images/LivingLabLogo.png'
               ),
               const SizedBox(height: 20),
               const Text(
-                'Welcome to Living Lab',
+                'Selamat datang di Living Lab',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'SFMono',
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Color.fromARGB(255, 44, 95, 0),
+                  color: AppColors.text, // <-- DIUBAH
                 ),
               ),
               const SizedBox(height: 10),
               const Text(
-                'Choose your monitoring system',
+                'Pilih sistem pemantauan Anda',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
@@ -58,7 +59,7 @@ class SelectionPage extends StatelessWidget {
                 icon: Icons.waves_outlined,
                 title: 'Smart Fish',
                 onTap: () {
-                  Navigator.pushReplacement(
+                  Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const ComingSoonPage()),
                   );
@@ -83,7 +84,7 @@ class SelectionPage extends StatelessWidget {
       onPressed: onTap,
       style: ElevatedButton.styleFrom(
         foregroundColor: Colors.white,
-        backgroundColor: Colors.green,
+        backgroundColor: AppColors.primary,
         padding: const EdgeInsets.symmetric(vertical: 20),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),

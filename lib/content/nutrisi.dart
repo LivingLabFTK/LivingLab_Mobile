@@ -5,7 +5,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:hydrohealth/services/notification_helper.dart';
-import 'package:hydrohealth/widgets/colors.dart';
 import 'package:speedometer_chart/speedometer_chart.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
@@ -15,7 +14,7 @@ import 'package:logging/logging.dart';
 
 import '../utils/colors.dart';
 
-final Logger _logger = Logger('PH');
+final Logger _logger = Logger('Nutrisi');
 
 void setupLogging() {
   Logger.root.level = Level.ALL;
@@ -24,24 +23,24 @@ void setupLogging() {
   });
 }
 
-class PhLog extends StatefulWidget {
-  const PhLog({super.key});
+class NutrisiLog extends StatefulWidget {
+  const NutrisiLog({super.key});
 
   @override
-  State<PhLog> createState() => _PhLogState();
+  State<NutrisiLog> createState() => _NutrisiLogState();
 }
 
-class _PhLogState extends State<PhLog> {
+class _NutrisiLogState extends State<NutrisiLog> {
   final DatabaseReference ref = FirebaseDatabase.instanceFor(
       app: Firebase.app(),
       databaseURL:
       'https://hydrohealth-project-9cf6c-default-rtdb.asia-southeast1.firebasedatabase.app')
       .ref('Monitoring');
   final CollectionReference _firestoreRef =
-  FirebaseFirestore.instance.collection('PhLog');
+  FirebaseFirestore.instance.collection('NutrisiLog');
 
   List<Map<String, dynamic>> _logs = [];
-  double _currentPhValue = 0.0;
+  double _currentNutrisiValue = 0.0;
   StreamSubscription? _dataSubscription;
 
   // State untuk Paginasi
@@ -67,28 +66,32 @@ class _PhLogState extends State<PhLog> {
     _dataSubscription = ref.limitToLast(1).onValue.listen((event) {
       final data = event.snapshot.value as Map?;
       final latestData = data?.values.last as Map?;
-      final ph = latestData?['pH'];
+      final nutrisi = latestData?['Nutrisi'];
 
-      if (ph != null) {
-        final phValue = (ph as num).toDouble();
-        if(mounted) {
+      if (nutrisi != null) {
+        final nutrisiValue = (nutrisi as num).toDouble();
+        if (mounted) {
           setState(() {
-            _currentPhValue = phValue;
+            _currentNutrisiValue = nutrisiValue;
           });
         }
 
         _firestoreRef.add({
-          'value': phValue,
+          'value': nutrisiValue,
           'timestamp': FieldValue.serverTimestamp(),
         }).then((_) {
-          _logger.info('Data pH berhasil dicatat ke Firestore.');
+          _logger.info('Data nutrisi berhasil dicatat ke Firestore.');
           if (_currentPage == 1 && mounted) {
             _fetchLogs();
           }
         });
 
-        if (phValue < 5) {
-          _showPhNotification();
+        if (nutrisiValue < 800) {
+          NotificationHelper.showNotification(
+            'Peringatan Nutrisi',
+            'Nutrisi di bawah 800ppm, saatnya tambahkan nutrisi',
+            'nutrisi_low',
+          );
         }
       }
     });
@@ -96,12 +99,11 @@ class _PhLogState extends State<PhLog> {
 
   void _fetchLogs() async {
     if (_isLoading) return;
-    if(mounted) setState(() { _isLoading = true; });
+    if (mounted) setState(() { _isLoading = true; });
 
     try {
-      final querySnapshot = await _firestoreRef
-          .orderBy('timestamp', descending: true)
-          .get();
+      final querySnapshot =
+      await _firestoreRef.orderBy('timestamp', descending: true).get();
       if (!mounted) return;
       setState(() {
         _logs = querySnapshot.docs
@@ -154,17 +156,17 @@ class _PhLogState extends State<PhLog> {
   Future<void> _exportLogsToExcel() async {
     var excel = Excel.createExcel();
     Sheet sheetObject = excel['LogHistory'];
-    sheetObject.appendRow([
-      const TextCellValue('Timestamp'),
-      const TextCellValue('pH Value')
-    ]);
+    sheetObject.appendRow(
+        [TextCellValue('Timestamp'),  TextCellValue('Nutrisi Value')]);
 
     for (var log in _logs) {
       final timestamp = (log['timestamp'] as Timestamp).toDate();
       final formattedDate =
           '${timestamp.day}-${timestamp.month}-${timestamp.year} ${timestamp.hour}:${timestamp.minute}:${timestamp.second}';
-      sheetObject.appendRow(
-          [TextCellValue(formattedDate), DoubleCellValue(log['value'])]);
+      sheetObject.appendRow([
+        TextCellValue(formattedDate),
+        DoubleCellValue((log['value'] as num).toDouble())
+      ]);
     }
 
     final fileBytes = excel.save();
@@ -172,7 +174,7 @@ class _PhLogState extends State<PhLog> {
       try {
         final directory = await getExternalStorageDirectory();
         if (directory == null) return;
-        final path = '${directory.path}/PhLog.xlsx';
+        final path = '${directory.path}/NutrisiLog.xlsx';
         File(path)
           ..createSync(recursive: true)
           ..writeAsBytesSync(fileBytes);
@@ -193,11 +195,6 @@ class _PhLogState extends State<PhLog> {
         const SnackBar(content: Text('Error generating Excel file.')),
       );
     }
-  }
-
-  void _showPhNotification() {
-    NotificationHelper.showNotification(
-        'Peringatan pH', 'pH di bawah 5 Anda perlu menaikan pH', 'Ph_low');
   }
 
   void _showOptionsDialog() {
@@ -249,11 +246,11 @@ class _PhLogState extends State<PhLog> {
               margin: const EdgeInsets.all(16.0),
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.8),
+                color: AppColors.primary.withValues(alpha:0.8),
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primary.withOpacity(0.3),
+                    color: AppColors.primary.withValues(alpha:0.3),
                     spreadRadius: 4,
                     blurRadius: 10,
                     offset: const Offset(0, 4),
@@ -272,26 +269,24 @@ class _PhLogState extends State<PhLog> {
                       Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, color: Colors.red, size: 10), SizedBox(width: 4), Text('Kurang', style: TextStyle(color: Colors.white))]),
                       Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, color: Colors.yellow, size: 10), SizedBox(width: 4), Text('Cukup', style: TextStyle(color: Colors.white))]),
                       Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, color: Colors.green, size: 10), SizedBox(width: 4), Text('Optimal', style: TextStyle(color: Colors.white))]),
-                      Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, color: Colors.lightBlue, size: 10), SizedBox(width: 4), Text('Lebih', style: TextStyle(color: Colors.white))]),
-                      Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, color: Color.fromARGB(255, 0, 34, 255), size: 10), SizedBox(width: 4), Text('Over', style: TextStyle(color: Colors.white))]),
                     ],
                   ),
                   const SizedBox(height: 10),
                   SpeedometerChart(
                     dimension: 200,
                     minValue: 0,
-                    maxValue: 14,
-                    value: _currentPhValue,
-                    graphColor: const [Colors.red, Colors.yellow, Colors.green, Colors.lightBlue, Color.fromARGB(255, 0, 34, 255)],
+                    maxValue: 1800,
+                    value: _currentNutrisiValue,
+                    graphColor: const [Colors.red, Colors.yellow, Colors.green],
                     pointerColor: AppColors.text,
                   ),
                   const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.opacity, color: Colors.white, size: 30),
+                      const Icon(Icons.science, color: Colors.white, size: 30),
                       const SizedBox(width: 10),
-                      Text('pH: $_currentPhValue', style: const TextStyle(color: Colors.white, fontSize: 20)),
+                      Text('Nutrisi: $_currentNutrisiValue ppm', style: const TextStyle(color: Colors.white, fontSize: 20)),
                     ],
                   ),
                 ],
@@ -303,7 +298,7 @@ class _PhLogState extends State<PhLog> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.2), spreadRadius: 2, blurRadius: 8, offset: const Offset(0, 4))],
+                boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha:0.2), spreadRadius: 2, blurRadius: 8, offset: const Offset(0, 4))],
               ),
               child: Column(
                 children: [
@@ -323,7 +318,7 @@ class _PhLogState extends State<PhLog> {
                           ? '${timestamp.toDate().day}-${timestamp.toDate().month}-${timestamp.toDate().year} ${timestamp.toDate().hour}:${timestamp.toDate().minute}'
                           : 'No timestamp';
                       return ListTile(
-                        title: Text('pH Value: ${log['value']}', style: const TextStyle(color: AppColors.text)),
+                        title: Text('Nutrisi Value: ${log['value']} ppm', style: const TextStyle(color: AppColors.text)),
                         subtitle: Text('Timestamp: $formattedDate'),
                         trailing: IconButton(
                           icon: const Icon(Icons.delete_sharp, color: Colors.redAccent),

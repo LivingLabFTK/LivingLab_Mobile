@@ -3,20 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hydrohealth/content/weather.dart';
-import 'package:hydrohealth/services/notification_helper.dart';
 import 'package:intl/intl.dart';
-import 'package:logging/logging.dart';
 
 import '../utils/colors.dart';
-
-final Logger _logger = Logger('Home');
-
-void setupLogging() {
-  Logger.root.level = Level.ALL;
-  Logger.root.onRecord.listen((record) {
-    _logger.info('${record.level.name}: ${record.time}: ${record.message}');
-  });
-}
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -26,19 +15,18 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  // Variabel dan referensi database untuk Control Panel sudah dihapus
-
+  // Referensi ke node Monitoring di Firebase
   final DatabaseReference ref = FirebaseDatabase.instanceFor(
       app: Firebase.app(),
       databaseURL:
       'https://hydrohealth-project-9cf6c-default-rtdb.asia-southeast1.firebasedatabase.app')
       .ref('Monitoring');
 
+  // Variabel untuk menampung data sensor
   String cuaca = 'Loading...';
   String kelembaban = 'Loading...';
   String nutrisi = 'Loading...';
   String suhu = 'Loading...';
-  String timestamp = 'Loading...';
   String ph = 'Loading...';
   String sisaLarutanKontainer = 'Loading...';
   String sisaNutrisiA = 'Loading...';
@@ -51,34 +39,34 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     super.initState();
-    NotificationHelper.initialize();
     _listenToRealtimeDatabase();
-    // Panggilan ke _loadControlPanelData() sudah dihapus
   }
 
   void _listenToRealtimeDatabase() {
-    ref.onValue.listen((event) {
-      final data = event.snapshot.value as Map<dynamic, dynamic>?;
+    // Dengerin data terbaru aja pake limitToLast(1), lebih efisien!
+    ref.limitToLast(1).onValue.listen((event) {
+      if (!mounted) return;
+      if (event.snapshot.value == null) return;
 
-      if (data != null) {
-        var latestEntry = data.entries.last.value;
+      final data = event.snapshot.value as Map<dynamic, dynamic>;
+      final latestEntry = data.values.first as Map<dynamic, dynamic>;
 
-        setState(() {
-          cuaca = (latestEntry['Cuaca'] ?? 'N/A').toString();
-          kelembaban = (latestEntry['Kelembaban'] ?? 'N/A').toString();
-          nutrisi = (latestEntry['Nutrisi'] ?? 'N/A').toString();
-          suhu = (latestEntry['Suhu'] ?? 'N/A').toString();
-          timestamp = (latestEntry['Timestamp'] ?? 'N/A').toString();
-          ph = (latestEntry['pH'] ?? 'N/A').toString();
-          sisaLarutanKontainer =
-              (latestEntry['Sisa Larutan Kontainer'] ?? 'N/A').toString();
-          sisaNutrisiA = (latestEntry['SisaNutris'] ?? 'N/A').toString();
-          sisaPestisida = (latestEntry['SisaPestisida'] ?? 'N/A').toString();
-          sisaPupukDaun = (latestEntry['SisaPupukDaun'] ?? 'N/A').toString();
-          sisaPhDown = (latestEntry['SisaPhDown'] ?? 'N/A').toString();
-          sisaPhUp = (latestEntry['Sisa pH Up'] ?? 'N/A').toString();
-        });
-      }
+      setState(() {
+        // Pastiin semua key ini SAMA PERSIS kayak di Firebase lo
+        cuaca = (latestEntry['Cuaca'] ?? 'N/A').toString();
+        kelembaban = (latestEntry['Kelembaban'] ?? 'N/A').toString();
+        nutrisi = (latestEntry['Nutrisi'] ?? 'N/A').toString();
+        suhu = (latestEntry['Suhu'] ?? 'N/A').toString();
+        ph = (latestEntry['pH'] ?? 'N/A').toString();
+        sisaLarutanKontainer =
+            (latestEntry['Sisa Larutan Kontainer'] ?? 'N/A').toString();
+        sisaNutrisiA = (latestEntry['SisaNutrisA'] ?? 'N/A').toString(); // Perhatikan key ini
+        sisaNutrisiB = (latestEntry['SisaNutrisB'] ?? 'N/A').toString(); // Perhatikan key ini
+        sisaPestisida = (latestEntry['SisaPestisida'] ?? 'N/A').toString();
+        sisaPupukDaun = (latestEntry['SisaPupukDaun'] ?? 'N/A').toString();
+        sisaPhDown = (latestEntry['SisaPhDown'] ?? 'N/A').toString();
+        sisaPhUp = (latestEntry['Sisa pH Up'] ?? 'N/A').toString();
+      });
     });
   }
 
@@ -91,7 +79,7 @@ class _HomeState extends State<Home> {
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 2,
             blurRadius: 5,
             offset: const Offset(0, 3),
@@ -101,7 +89,7 @@ class _HomeState extends State<Home> {
       child: ListTile(
         title: Text(
           title,
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: 'SFMono',
             color: AppColors.primary,
             fontWeight: FontWeight.bold,
@@ -109,7 +97,7 @@ class _HomeState extends State<Home> {
         ),
         subtitle: Text(
           '$value $unit',
-          style: TextStyle(color: AppColors.text.withOpacity(0.7), fontSize: 16),
+          style: TextStyle(color: AppColors.text.withValues(alpha: 0.7), fontSize: 16),
         ),
       ),
     );
@@ -127,69 +115,51 @@ class _HomeState extends State<Home> {
     TextEditingController(text: data?['name']);
     final TextEditingController countController =
     TextEditingController(text: data?['count'].toString());
-    final TextEditingController plantingDateController =
-    TextEditingController(text: _formatTimestamp(data?['plantingDate']));
-    final TextEditingController harvestDateController =
-    TextEditingController(text: _formatTimestamp(data?['harvestDate']));
+    final TextEditingController plantingDateController = TextEditingController(
+        text: data?['plantingDate'] != null
+            ? _formatTimestamp(data!['plantingDate'])
+            : '');
+    final TextEditingController harvestDateController = TextEditingController(
+        text: data?['harvestDate'] != null
+            ? _formatTimestamp(data!['harvestDate'])
+            : '');
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Edit Plant Information'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'Name'),
-              ),
-              TextField(
-                controller: countController,
-                decoration: const InputDecoration(labelText: 'Count'),
-                keyboardType: TextInputType.number,
-              ),
-              TextField(
-                controller: plantingDateController,
-                decoration: const InputDecoration(labelText: 'Planting Date'),
-                onTap: () async {
-                  DateTime? picked = await showDatePicker(
-                    context: context,
-                    initialDate: DateTime.now(),
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime(2101),
-                  );
-                  if (picked != null) {
-                    plantingDateController.text =
-                        DateFormat.yMMMMd().format(picked);
-                  }
-                },
-              ),
-              TextField(
-                controller: harvestDateController,
-                decoration: const InputDecoration(labelText: 'Harvest Date'),
-                onTap: () async {
-                  DateTime? picked = await showDatePicker(
-                    context: context,
-                    initialDate: DateTime.now(),
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime(2101),
-                  );
-                  if (picked != null) {
-                    harvestDateController.text =
-                        DateFormat.yMMMMd().format(picked);
-                  }
-                },
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Name')),
+                TextField(controller: countController, decoration: const InputDecoration(labelText: 'Count'), keyboardType: TextInputType.number),
+                TextField(
+                  controller: plantingDateController,
+                  decoration: const InputDecoration(labelText: 'Planting Date'),
+                  onTap: () async {
+                    DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2101));
+                    if (picked != null) {
+                      plantingDateController.text = DateFormat.yMMMMd().format(picked);
+                    }
+                  },
+                ),
+                TextField(
+                  controller: harvestDateController,
+                  decoration: const InputDecoration(labelText: 'Harvest Date'),
+                  onTap: () async {
+                    DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2101));
+                    if (picked != null) {
+                      harvestDateController.text = DateFormat.yMMMMd().format(picked);
+                    }
+                  },
+                ),
+              ],
+            ),
           ),
           actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
-            ),
+            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
             TextButton(
               onPressed: () {
                 FirebaseFirestore.instance
@@ -198,10 +168,8 @@ class _HomeState extends State<Home> {
                     .update({
                   'name': nameController.text,
                   'count': int.parse(countController.text),
-                  'plantingDate': Timestamp.fromDate(
-                      DateFormat.yMMMMd().parse(plantingDateController.text)),
-                  'harvestDate': Timestamp.fromDate(
-                      DateFormat.yMMMMd().parse(harvestDateController.text)),
+                  'plantingDate': Timestamp.fromDate(DateFormat.yMMMMd().parse(plantingDateController.text)),
+                  'harvestDate': Timestamp.fromDate(DateFormat.yMMMMd().parse(harvestDateController.text)),
                 });
                 Navigator.of(context).pop();
               },
@@ -226,17 +194,14 @@ class _HomeState extends State<Home> {
     final name = data?['name'] ?? 'Unknown Plant';
     final count = data?['count'] ?? 'N/A';
     final plantingDate = data?['plantingDate'] != null
-        ? _formatTimestamp(data?['plantingDate'])
+        ? _formatTimestamp(data!['plantingDate'])
         : 'N/A';
     final harvestDate = data?['harvestDate'] != null
-        ? _formatTimestamp(data?['harvestDate'])
+        ? _formatTimestamp(data!['harvestDate'])
         : 'N/A';
 
     return Container(
-      margin: const EdgeInsets.symmetric(
-        horizontal: 20,
-        vertical: 10,
-      ),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border.all(color: AppColors.primary, width: 1.5),
@@ -245,26 +210,14 @@ class _HomeState extends State<Home> {
       child: Stack(
         children: [
           ListTile(
-            leading: const Icon(
-              Icons.eco,
-              color: AppColors.primary,
-            ),
-            title: Text(
-              name,
-              style: const TextStyle(
-                color: AppColors.text,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            leading: const Icon(Icons.eco, color: AppColors.primary),
+            title: Text(name, style: const TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Count: $count',
-                    style: TextStyle(color: AppColors.text.withOpacity(0.7))),
-                Text('Planting Date: $plantingDate',
-                    style: TextStyle(color: AppColors.text.withOpacity(0.7))),
-                Text('Harvest Date: $harvestDate',
-                    style: TextStyle(color: AppColors.text.withOpacity(0.7))),
+                Text('Count: $count', style: TextStyle(color: AppColors.text.withValues(alpha: 0.7))),
+                Text('Planting Date: $plantingDate', style: TextStyle(color: AppColors.text.withValues(alpha: 0.7))),
+                Text('Harvest Date: $harvestDate', style: TextStyle(color: AppColors.text.withValues(alpha: 0.7))),
               ],
             ),
           ),
@@ -273,18 +226,8 @@ class _HomeState extends State<Home> {
             right: 0,
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.edit, color: AppColors.primary),
-                  onPressed: () {
-                    _editPlantInfo(document);
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.redAccent),
-                  onPressed: () {
-                    _deletePlantInfo(document);
-                  },
-                ),
+                IconButton(icon: const Icon(Icons.edit, color: AppColors.primary), onPressed: () => _editPlantInfo(document)),
+                IconButton(icon: const Icon(Icons.delete, color: Colors.redAccent), onPressed: () => _deletePlantInfo(document)),
               ],
             ),
           ),
@@ -300,55 +243,35 @@ class _HomeState extends State<Home> {
       body: SafeArea(
         child: ListView(
           children: [
-            // Weather Information
             const SizedBox(height: 20),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
               child: Text(
                 'Informasi Cuaca',
-                style: TextStyle(
-                  fontFamily: 'SFMono',
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.text,
-                ),
+                style: TextStyle(fontFamily: 'SFMono', fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.text),
               ),
             ),
             const Padding(
               padding: EdgeInsets.all(20),
               child: WeatherPage(),
             ),
-
-            // Bagian UI Control Panel sudah dihapus total dari sini
-
-            // Monitoring Text
             const Padding(
               padding: EdgeInsets.fromLTRB(20, 0, 20, 20),
               child: Text(
                 'Monitoring Kondisi Hydrohealth',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.text,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.text),
               ),
             ),
-            // List Column
             _buildSensorCard('Monitoring Sensor Cuaca', cuaca, ''),
             _buildSensorCard('Monitoring Sensor Suhu', suhu, '°C'),
             _buildSensorCard('Monitoring Sensor Kelembaban', kelembaban, '%'),
             _buildSensorCard('Monitoring Sensor Ph', ph, ''),
             _buildSensorCard('Monitoring Sensor Nutrisi', nutrisi, 'PPM'),
-
             const Padding(
               padding: EdgeInsets.all(20),
               child: Text(
                 'Monitoring Kondisi Supplai',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.text,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.text),
               ),
             ),
             _buildSensorCard('Sisa Larutan Kontainer', sisaLarutanKontainer, 'L'),
@@ -358,23 +281,15 @@ class _HomeState extends State<Home> {
             _buildSensorCard('Sisa Pupuk Daun', sisaPupukDaun, 'L'),
             _buildSensorCard('Sisa pH Down', sisaPhDown, 'L'),
             _buildSensorCard('Sisa pH Up', sisaPhUp, 'L'),
-
-            // Plant Info from Firestore
             const Padding(
               padding: EdgeInsets.all(20),
               child: Text(
                 'Informasi Tanaman',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.text,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.text),
               ),
             ),
             StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('InformasiTanaman')
-                  .snapshots(),
+              stream: FirebaseFirestore.instance.collection('InformasiTanaman').snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
@@ -383,13 +298,11 @@ class _HomeState extends State<Home> {
                   return const Center(child: Text("Belum ada informasi tanaman."));
                 }
                 return Column(
-                  children: snapshot.data!.docs.map((document) {
-                    return _buildPlantInfoCard(document);
-                  }).toList(),
+                  children: snapshot.data!.docs.map((document) => _buildPlantInfoCard(document)).toList(),
                 );
               },
             ),
-            const SizedBox(height: 20), // Spasi di bagian bawah
+            const SizedBox(height: 20),
           ],
         ),
       ),

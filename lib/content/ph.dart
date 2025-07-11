@@ -246,11 +246,11 @@ class _PhLogState extends State<PhLog> {
               margin: const EdgeInsets.all(16.0),
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.8),
+                color: AppColors.primary.withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primary.withOpacity(0.3),
+                    color: AppColors.primary.withValues(alpha: 0.3),
                     spreadRadius: 4,
                     blurRadius: 10,
                     offset: const Offset(0, 4),
@@ -300,7 +300,7 @@ class _PhLogState extends State<PhLog> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.2), spreadRadius: 2, blurRadius: 8, offset: const Offset(0, 4))],
+                boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.2), spreadRadius: 2, blurRadius: 8, offset: const Offset(0, 4))],
               ),
               child: Column(
                 children: [

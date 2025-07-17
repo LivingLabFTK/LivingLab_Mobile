@@ -40,12 +40,32 @@ final List<SensorConfig> sensorConfigs = [
   SensorConfig(key: 'tds1_ppm', label: 'TDS 1 (PPM)', color: Colors.red),
   SensorConfig(key: 'tds2_ppm', label: 'TDS 2 (PPM)', color: Colors.orange),
   SensorConfig(
-      key: 'turbidity_ntu', label: 'Kekeruhan (NTU)', color: Colors.brown),
+      key: 'turbidity_ntu',
+      label: 'Kekeruhan (NTU)',
+      color: Colors.lightGreenAccent),
   SensorConfig(key: 'level1_percent', label: 'Level 1 (%)', color: Colors.cyan),
   SensorConfig(key: 'level2_percent', label: 'Level 2 (%)', color: Colors.blue),
   SensorConfig(
       key: 'flow_rate_lpm', label: 'Aliran (L/min)', color: Colors.purple),
 ];
+
+final List<Map<String, String>> _sensorList = [
+  {'key': 'tds1', 'label': 'TDS 1'},
+  {'key': 'tds2', 'label': 'TDS 2'},
+  {'key': 'turbidity', 'label': 'Kekeruhan'},
+  {'key': 'level1', 'label': 'Level 1'},
+  {'key': 'level2', 'label': 'Level 2'},
+  {'key': 'flowRate', 'label': 'Aliran Air'},
+];
+
+Set<String> _selectedSensors = {
+  'tds1',
+  'tds2',
+  'turbidity',
+  'level1',
+  'level2',
+  'flowRate'
+};
 
 class MonitoringPage extends StatefulWidget {
   const MonitoringPage({super.key});
@@ -324,7 +344,6 @@ class _MonitoringPageState extends State<MonitoringPage> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Filter Section
             Card(
               elevation: 2,
               child: Padding(
@@ -368,7 +387,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   ElevatedButton.icon(
-                    onPressed: _exportToExcel,
+                    onPressed: _exportToExcel, // Tombol export ke Excel
                     icon: const Icon(Icons.grid_on),
                     label: const Text('Export Excel'),
                     style: ElevatedButton.styleFrom(
@@ -378,7 +397,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton.icon(
-                    onPressed: _exportToPdf,
+                    onPressed: _exportToPdf, // Tombol export ke PDF
                     icon: const Icon(Icons.picture_as_pdf),
                     label: const Text('Export PDF'),
                     style: ElevatedButton.styleFrom(
@@ -430,7 +449,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
     } else {
       text = DateFormat('HH:mm').format(date);
     }
-    return Text(text, style: style); // Sederhana, tanpa SideTitleWidget
+    return Text(text, style: style);
   }
 
   LineChartData _buildChartData() {
@@ -457,7 +476,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
           sideTitles: SideTitles(
             showTitles: true,
             reservedSize: 32,
-            getTitlesWidget: bottomTitleWidgets, // Fungsi yang sudah diperbaiki
+            getTitlesWidget: bottomTitleWidgets,
           ),
         ),
         topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -470,7 +489,6 @@ class _MonitoringPageState extends State<MonitoringPage> {
           border: Border.all(color: const Color(0xff37434d), width: 1)),
       lineTouchData: LineTouchData(
         touchTooltipData: LineTouchTooltipData(
-          // Tanpa tooltipBgColor
           getTooltipItems: (touchedSpots) {
             return touchedSpots.map((spot) {
               final sensorLabel = sensorConfigs[spot.barIndex].label;

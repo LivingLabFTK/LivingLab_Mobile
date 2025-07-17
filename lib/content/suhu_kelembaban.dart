@@ -1,663 +1,599 @@
-import 'dart:async';
-import 'dart:io';
-import 'dart:math'; // Import buat bikin data acak
+// lib/pages/monitoring_page.dart
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:excel/excel.dart';
+import 'dart:io'; // FIXED: Corrected the import from 'package.io' to 'dart:io'
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:excel/excel.dart' hide Border;
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_database/firebase_database.dart' hide Query;
+import 'package:firebase_database/firebase_database.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:logging/logging.dart';
+import 'package:flutter/rendering.dart';
+import 'package:hydrohealth/utils/colors.dart';
+import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:printing/printing.dart';
 
-import '../utils/colors.dart';
+// =======================================================================
+// TOP-LEVEL FUNCTIONS FOR BACKGROUND PROCESSING (ISOLATE / COMPUTE)
+// =======================================================================
 
-final Logger _logger = Logger('SuhuKelembapan');
+/// Generates Excel file bytes in a background isolate.
+Future<Uint8List?> _generateExcelBytes(List<SensorData> data) async {
+  final excel = Excel.createExcel();
+  final Sheet sheet = excel['Data Monitoring (Rata-rata 5 Menit)'];
 
-void setupLogging() {
-  Logger.root.level = Level.ALL;
-  Logger.root.onRecord.listen((record) {
-    _logger.info('${record.level.name}: ${record.time}: ${record.message}');
-  });
+  final List<String> sensorLabels = sensorConfigs.map((s) => s.label).toList();
+  final List<TextCellValue> headers = [
+    TextCellValue('Waktu'),
+    ...sensorLabels.map(TextCellValue.new)
+  ];
+  sheet.appendRow(headers);
+
+  for (var entry in data) {
+    final List<CellValue> row = [
+      TextCellValue(DateFormat('yyyy-MM-dd HH:mm').format(entry.timestamp)),
+      ...sensorConfigs.map((s) {
+        final value = entry.values[s.key];
+        return (value is num)
+            ? DoubleCellValue(value.toDouble())
+            : TextCellValue(value?.toString() ?? 'N/A');
+      })
+    ];
+    sheet.appendRow(row);
+  }
+
+  final fileBytes = excel.save();
+  return (fileBytes != null) ? Uint8List.fromList(fileBytes) : null;
 }
 
-class SuhuKelembaban extends StatefulWidget {
-  const SuhuKelembaban({super.key});
+/// A data class to pass parameters to the PDF generation isolate.
+class PdfParams {
+  final Uint8List chartImageBytes;
+  final List<SensorData> displayData;
+
+  PdfParams(this.chartImageBytes, this.displayData);
+}
+
+/// Generates PDF file bytes in a background isolate.
+Future<Uint8List> _generatePdfBytes(PdfParams params) async {
+  final pdf = pw.Document();
+  final chartImage = pw.MemoryImage(params.chartImageBytes);
+
+  final headers = [
+    'Waktu (Rata-rata 5 Menit)',
+    ...sensorConfigs.map((s) => s.label)
+  ];
+  final data = params.displayData
+      .map((item) => [
+            DateFormat('yyyy-MM-dd HH:mm').format(item.timestamp),
+            ...sensorConfigs.map((s) =>
+                (item.values[s.key] as double?)?.toStringAsFixed(2) ?? 'N/A')
+          ])
+      .toList();
+
+  pdf.addPage(
+    pw.MultiPage(
+      pageFormat: PdfPageFormat.a4.landscape,
+      build: (context) => [
+        pw.Header(
+            level: 0,
+            child: pw.Text("Laporan Data Monitoring Gabungan",
+                textScaleFactor: 2)),
+        pw.Container(
+          height: 350,
+          width: double.infinity,
+          child: pw.Image(chartImage),
+        ),
+        pw.SizedBox(height: 20),
+        pw.Table.fromTextArray(
+          headers: headers,
+          data: data,
+          border: pw.TableBorder.all(),
+          headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+          cellAlignment: pw.Alignment.center,
+          cellStyle: const pw.TextStyle(fontSize: 8),
+        ),
+      ],
+    ),
+  );
+
+  return pdf.save();
+}
+
+// =======================================================================
+// DATA MODELS AND CONFIGS
+// =======================================================================
+
+class SensorData {
+  final DateTime timestamp;
+  final Map<String, dynamic> values;
+
+  SensorData({required this.timestamp, required this.values});
+}
+
+class SensorConfig {
+  final String key;
+  final String label;
+  final Color color;
+
+  SensorConfig({required this.key, required this.label, required this.color});
+}
+
+final List<SensorConfig> sensorConfigs = [
+  SensorConfig(key: 'tds1_ppm', label: 'TDS 1 (PPM)', color: Colors.red),
+  SensorConfig(key: 'tds2_ppm', label: 'TDS 2 (PPM)', color: Colors.orange),
+  SensorConfig(
+      key: 'turbidity_ntu',
+      label: 'Kekeruhan (NTU)',
+      color: Colors.lightGreenAccent),
+  SensorConfig(key: 'level1_percent', label: 'Level 1 (%)', color: Colors.cyan),
+  SensorConfig(key: 'level2_percent', label: 'Level 2 (%)', color: Colors.blue),
+  SensorConfig(
+      key: 'flow_rate_lpm', label: 'Aliran (L/min)', color: Colors.purple),
+];
+
+// =======================================================================
+// WIDGET
+// =======================================================================
+
+class MonitoringPage extends StatefulWidget {
+  const MonitoringPage({super.key});
 
   @override
-  State<SuhuKelembaban> createState() => _SuhuKelembabanState();
+  _MonitoringPageState createState() => _MonitoringPageState();
 }
 
-class _SuhuKelembabanState extends State<SuhuKelembaban> {
-  // Ganti jadi 'false' untuk kembali menggunakan data asli Firebase
-  final bool _useDummyData = true;
-
-  // Variabel untuk Firebase (dinonaktifkan jika pake dummy)
-  final DatabaseReference monitoringRef = FirebaseDatabase.instanceFor(
-      app: Firebase.app(),
-      databaseURL:
-      'https://hydrohealth-project-9cf6c-default-rtdb.asia-southeast1.firebasedatabase.app')
-      .ref('Monitoring');
-  final CollectionReference _firestoreRef =
-  FirebaseFirestore.instance.collection('SuhuKelembabanLog');
-  StreamSubscription? _dataSubscription;
-
-  List<Map<String, dynamic>> _logs = [];
-  double _currentSuhu = 27.0;
-  double _currentKelembaban = 65.0;
-  Timer? _dummyDataTimer;
-
-  // State Paginasi
-  int _currentPage = 1;
-  final int _itemsPerPage = 5;
-  bool _isLoading = false;
+class _MonitoringPageState extends State<MonitoringPage> {
+  final GlobalKey _chartKey = GlobalKey();
+  List<SensorData> _rawData = [];
+  List<SensorData> _displayData = [];
+  DateTime _startDate = DateTime.now().subtract(const Duration(days: 7));
+  DateTime _endDate = DateTime.now();
+  bool _isLoading = true;
+  bool _isExporting = false;
 
   @override
   void initState() {
     super.initState();
-    if (_useDummyData) {
-      _startDummyData();
-    } else {
-      _listenAndLogData();
-      _fetchLogs();
-    }
+    _fetchData();
   }
 
-  @override
-  void dispose() {
-    _dataSubscription?.cancel();
-    _dummyDataTimer?.cancel();
-    super.dispose();
-  }
+  Future<void> _fetchData() async {
+    try {
+      final DatabaseReference ref = FirebaseDatabase.instanceFor(
+              app: Firebase.app(),
+              databaseURL:
+                  'https://hydrohealth-project-9cf6c-default-rtdb.asia-southeast1.firebasedatabase.app/')
+          .ref('Hydroponic_Data');
 
-  void _startDummyData() {
-    _dummyDataTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      if (!mounted) return;
+      final snapshot = await ref.get();
+      if (snapshot.exists && snapshot.value != null) {
+        final data = snapshot.value as Map<dynamic, dynamic>;
+        final List<SensorData> processedData = [];
 
-      final random = Random();
-      final dummySuhu = 25.0 + random.nextDouble() * 5.0;
-      final dummyKelembaban = 60.0 + random.nextDouble() * 10.0;
-
-      final dummyLog = {
-        'id': DateTime
-            .now()
-            .millisecondsSinceEpoch
-            .toString(),
-        'suhu': dummySuhu,
-        'kelembaban': dummyKelembaban,
-        'timestamp': Timestamp.now(),
-      };
-
-      setState(() {
-        _currentSuhu = dummySuhu;
-        _currentKelembaban = dummyKelembaban;
-        _logs.insert(0, dummyLog);
-      });
-    });
-  }
-
-  void _listenAndLogData() {
-    _dataSubscription = monitoringRef.onValue.listen((event) {
-      final data = event.snapshot.value as Map<dynamic, dynamic>?;
-      if (data == null) return;
-
-      final latestEntry = data.values.last as Map<dynamic, dynamic>?;
-      if (latestEntry == null) return;
-
-      final suhu = latestEntry['Suhu'];
-      final kelembaban = latestEntry['Kelembaban'];
-
-      if (suhu != null && kelembaban != null) {
-        _firestoreRef.add({
-          'suhu': (suhu as num).toDouble(),
-          'kelembaban': (kelembaban as num).toDouble(),
-          'timestamp': FieldValue.serverTimestamp(),
-        }).then((_) {
-          if (_currentPage == 1) {
-            _fetchLogs();
+        data.forEach((dateKey, entries) {
+          if (entries is Map<dynamic, dynamic>) {
+            entries.forEach((entryKey, entryValue) {
+              if (entryValue is Map<dynamic, dynamic> &&
+                  entryValue.containsKey('timestamp_iso')) {
+                processedData.add(SensorData(
+                  timestamp: DateTime.parse(entryValue['timestamp_iso']),
+                  values: Map<String, dynamic>.from(entryValue),
+                ));
+              }
+            });
           }
         });
-      }
-    });
-  }
 
-  void _fetchLogs() async {
-    if (_isLoading) return;
-    if (mounted)
-      setState(() {
-        _isLoading = true;
-      });
-
-    try {
-      Query query = _firestoreRef.orderBy('timestamp', descending: true);
-      final querySnapshot = await query.get();
-
-      if (!mounted) return;
-      setState(() {
-        _logs = querySnapshot.docs
-            .map((doc) => {'id': doc.id, ...doc.data() as Map<String, dynamic>})
-            .toList();
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (mounted)
-        setState(() {
-          _isLoading = false;
-        });
-    }
-  }
-
-  void _deleteLog(String id) async {
-    if (_useDummyData) return;
-    try {
-      await _firestoreRef.doc(id).delete();
-      _fetchLogs();
-    } catch (e) {}
-  }
-
-  void _deleteAllLogs() async {
-    if (_useDummyData) return;
-    try {
-      final batch = FirebaseFirestore.instance.batch();
-      final querySnapshot = await _firestoreRef.get();
-      for (final doc in querySnapshot.docs) {
-        batch.delete(doc.reference);
-      }
-      await batch.commit();
-      _fetchLogs();
-    } catch (e) {
-
-    }
-  }
-
-  Future<void> _requestPermission() async {
-    if (await Permission.storage
-        .request()
-        .isGranted) {
-      _exportLogsToExcel();
-    } else {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Storage permission is required to save logs.')),
-      );
-    }
-  }
-
-  Future<void> _exportLogsToExcel() async {
-    var excel = Excel.createExcel();
-    Sheet sheetObject = excel['LogHistory'];
-    sheetObject.appendRow([
-      TextCellValue('Timestamp'),
-      TextCellValue('Suhu (°C)'),
-      TextCellValue('Kelembaban (%)')
-    ]);
-
-    for (var log in _logs) {
-      final timestamp = (log['timestamp'] as Timestamp).toDate();
-      final formattedDate =
-          '${timestamp.day}-${timestamp.month}-${timestamp.year} ${timestamp
-          .hour}:${timestamp.minute}:${timestamp.second}';
-      sheetObject.appendRow([
-        TextCellValue(formattedDate),
-        DoubleCellValue((log['suhu'] as num).toDouble()),
-        DoubleCellValue((log['kelembaban'] as num).toDouble()),
-      ]);
-    }
-
-    final fileBytes = excel.save();
-    if (fileBytes != null) {
-      try {
-        final directory = await getExternalStorageDirectory();
-        if (!mounted) return;
-        final path = await _showSaveFileDialog(context, directory!.path);
-        if (path != null) {
-          if (!mounted) return;
-          File(path)
-            ..createSync(recursive: true)
-            ..writeAsBytesSync(fileBytes);
-          if (!mounted) return;
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('Logs exported to $path')));
-
-          await OpenFile.open(path);
+        processedData.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        if (mounted) {
+          setState(() {
+            _rawData = processedData;
+            _filterAndDownsampleData();
+            _isLoading = false;
+          });
         }
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error writing file: $e')));
+      } else {
+        if (mounted) setState(() => _isLoading = false);
       }
-    } else {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error generating Excel file.')),
-      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Gagal mengambil data: $e")),
+        );
+      }
     }
   }
 
-  Future<String?> _showSaveFileDialog(BuildContext context,
-      String initialDirectory) async {
-    TextEditingController fileNameController = TextEditingController();
-    return showDialog<String>(
+  void _filterAndDownsampleData() {
+    if (_rawData.isEmpty) {
+      if (mounted) setState(() => _displayData = []);
+      return;
+    }
+
+    final start = DateTime(_startDate.year, _startDate.month, _startDate.day);
+    final end =
+        DateTime(_endDate.year, _endDate.month, _endDate.day, 23, 59, 59);
+
+    final filtered = _rawData.where((item) {
+      return !item.timestamp.isBefore(start) && !item.timestamp.isAfter(end);
+    }).toList();
+
+    final downsampled =
+        _downsampleWithAverage(filtered, const Duration(minutes: 5));
+
+    if (mounted) {
+      setState(() {
+        _displayData = downsampled;
+      });
+    }
+  }
+
+  List<SensorData> _downsampleWithAverage(
+      List<SensorData> data, Duration interval) {
+    if (data.isEmpty) return [];
+
+    final Map<int, List<SensorData>> buckets = {};
+    final intervalMillis = interval.inMilliseconds;
+
+    for (var entry in data) {
+      final bucketKey =
+          (entry.timestamp.millisecondsSinceEpoch / intervalMillis).floor();
+      buckets.putIfAbsent(bucketKey, () => []).add(entry);
+    }
+
+    final List<SensorData> averagedData = [];
+    buckets.forEach((key, bucketEntries) {
+      if (bucketEntries.isEmpty) return;
+
+      final avgValues = <String, double>{};
+      for (var sensor in sensorConfigs) {
+        double sum = 0;
+        int count = 0;
+        for (var entry in bucketEntries) {
+          final value = entry.values[sensor.key];
+          if (value != null && value is num) {
+            sum += value;
+            count++;
+          }
+        }
+        avgValues[sensor.key] = count > 0 ? sum / count : 0.0;
+      }
+
+      final timestamp =
+          DateTime.fromMillisecondsSinceEpoch(key * intervalMillis);
+      averagedData.add(SensorData(timestamp: timestamp, values: avgValues));
+    });
+
+    averagedData.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return averagedData;
+  }
+
+  Future<void> _selectDate(BuildContext context, bool isStartDate) async {
+    final DateTime? picked = await showDatePicker(
       context: context,
+      initialDate: isStartDate ? _startDate : _endDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        if (isStartDate) {
+          _startDate = picked;
+        } else {
+          _endDate = picked;
+        }
+        _filterAndDownsampleData();
+      });
+    }
+  }
+
+  void _showExportingDialog() {
+    setState(() => _isExporting = true);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Save As'),
-          content: TextField(
-            controller: fileNameController,
-            decoration: const InputDecoration(hintText: "Enter file name"),
+        return const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Text("Mengekspor data..."),
+            ],
           ),
-          actions: <Widget>[
-            TextButton(
-                child: const Text('CANCEL'),
-                onPressed: () => Navigator.of(context).pop()),
-            TextButton(
-              child: const Text('SAVE'),
-              onPressed: () {
-                String fileName = fileNameController.text;
-                if (fileName.isNotEmpty) {
-                  Navigator.of(context).pop('$initialDirectory/$fileName.xlsx');
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('File name cannot be empty')));
-                }
-              },
-            ),
-          ],
         );
       },
     );
   }
 
-  List<FlSpot> _createSuhuChartData() {
-    if (_logs.isEmpty) return [const FlSpot(0, 0)];
-    var recentLogs = _logs.take(20).toList();
-    var reversedLogs = recentLogs.reversed.toList();
-    return reversedLogs
-        .asMap()
-        .entries
-        .map((entry) {
-      return FlSpot(
-          entry.key.toDouble(), (entry.value['suhu'] ?? 0).toDouble());
-    }).toList();
+  void _hideExportingDialog() {
+    if (_isExporting && mounted) {
+      Navigator.of(context).pop();
+      setState(() => _isExporting = false);
+    }
   }
 
-  List<FlSpot> _createKelembabanChartData() {
-    if (_logs.isEmpty) return [const FlSpot(0, 0)];
-    var recentLogs = _logs.take(20).toList();
-    var reversedLogs = recentLogs.reversed.toList();
-    return reversedLogs
-        .asMap()
-        .entries
-        .map((entry) {
-      return FlSpot(
-          entry.key.toDouble(), (entry.value['kelembaban'] ?? 0).toDouble());
-    }).toList();
+  Future<void> _exportToExcel() async {
+    if (_isExporting) return;
+    if (_displayData.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Tidak ada data untuk diekspor.")));
+      return;
+    }
+
+    _showExportingDialog();
+
+    try {
+      final Uint8List? fileBytes =
+          await compute(_generateExcelBytes, _displayData);
+      _hideExportingDialog();
+
+      if (fileBytes == null) {
+        throw Exception("Gagal membuat file Excel.");
+      }
+
+      var status = await Permission.storage.status;
+      if (!status.isGranted) {
+        status = await Permission.storage.request();
+      }
+
+      if (status.isGranted) {
+        final directory = await getExternalStorageDirectory();
+        final path = '${directory!.path}/DataMonitoring_RataRata.xlsx';
+        await File(path).writeAsBytes(fileBytes);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Berhasil diekspor ke $path')));
+        OpenFile.open(path);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Izin penyimpanan ditolak.")));
+      }
+    } catch (e) {
+      _hideExportingDialog();
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Terjadi kesalahan saat ekspor: $e")));
+    }
   }
 
-  String _formatTimeLabel(double value) {
-    var recentLogs = _logs
-        .take(20)
-        .toList()
-        .reversed
-        .toList();
-    int index = value.toInt();
-    if (index < 0 || index >= recentLogs.length) return '';
-    final log = recentLogs[index];
-    if (log['timestamp'] == null) return '';
-    final timestamp = log['timestamp'] as Timestamp;
-    final date = timestamp.toDate();
-    return '${date.hour}:${date.minute}';
+  Future<Uint8List> _captureChart() async {
+    RenderRepaintBoundary boundary =
+        _chartKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+    ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+    ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
   }
 
-  void _showOptionsDialog(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (BuildContext context) {
-        return Wrap(
-          children: [
-            ListTile(
-              leading:
-              const Icon(Icons.delete_forever, color: Colors.redAccent),
-              title: const Text('Delete All Logs'),
-              onTap: () {
-                Navigator.pop(context);
-                _deleteAllLogs();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.download, color: AppColors.primary),
-              title: const Text('Download Logs as Excel'),
-              onTap: () {
-                Navigator.pop(context);
-                _requestPermission();
-              },
-            ),
-          ],
-        );
-      },
-    );
+  Future<void> _exportToPdf() async {
+    if (_isExporting) return;
+    if (_displayData.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Tidak ada data untuk diekspor.")));
+      return;
+    }
+
+    _showExportingDialog();
+
+    try {
+      final chartImageBytes = await _captureChart();
+      final pdfParams = PdfParams(chartImageBytes, _displayData);
+
+      final Uint8List pdfBytes = await compute(_generatePdfBytes, pdfParams);
+      _hideExportingDialog();
+
+      await Printing.layoutPdf(
+          onLayout: (PdfPageFormat format) async => pdfBytes);
+    } catch (e) {
+      _hideExportingDialog();
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Terjadi kesalahan saat ekspor: $e")));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final int totalLogs = _logs.length;
-    final int totalPages = (totalLogs / _itemsPerPage).ceil();
-    final int startIndex = (_currentPage - 1) * _itemsPerPage;
-    final int endIndex = startIndex + _itemsPerPage > totalLogs
-        ? totalLogs
-        : startIndex + _itemsPerPage;
-    final List<Map<String, dynamic>> paginatedLogs =
-    (totalLogs > 0) ? _logs.sublist(startIndex, endIndex) : [];
-
     return Scaffold(
       backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Dashboard Monitoring',
+            style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.primary,
+        elevation: 2,
+      ),
       body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.all(16.0),
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.8),
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.3),
-                      spreadRadius: 4,
-                      blurRadius: 10,
-                      offset: const Offset(0, 4))
-                ],
-              ),
-              child: Column(
-                children: [
-                  Text('Kondisi Saat ini ${_useDummyData ? "(Dummy)" : ""}',
-                      style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white)),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    alignment: WrapAlignment.spaceEvenly,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    runSpacing: 5.0,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.thermostat,
-                              color: Colors.redAccent, size: 25),
-                          Text('Suhu: ${_currentSuhu.toStringAsFixed(0)}°C',
-                              style: const TextStyle(
-                                  color: Colors.white, fontSize: 15))
-                        ],
-                      ),
-                      const Row(
-                        children: [
-                          SizedBox(width: 5),
-                        ],
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.water_drop,
-                              color: AppColors.secondary, size: 25),
-                          Text(
-                              'Kelembapan: ${_currentKelembaban.toStringAsFixed(
-                                  0)}%',
-                              style: const TextStyle(
-                                  color: Colors.white, fontSize: 15))
-                        ],
-                      ),
+                      Expanded(
+                          child: _buildDatePicker("Dari", _startDate,
+                              () => _selectDate(context, true))),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: _buildDatePicker("s.d.", _endDate,
+                              () => _selectDate(context, false))),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Temperature (Suhu)',
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.text)),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 200,
-                    child: _logs.isEmpty
-                        ? const Center(child: Text("Menunggu data..."))
-                        : LineChart(LineChartData(
-                        gridData: const FlGridData(show: true),
-                        titlesData: FlTitlesData(
-                            topTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false)),
-                            rightTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false)),
-                            bottomTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                    showTitles: true,
-                                    reservedSize: 35,
-                                    getTitlesWidget: (value, meta) =>
-                                        Padding(
-                                            padding:
-                                            const EdgeInsets.only(top: 8.0),
-                                            child: Text(_formatTimeLabel(value),
-                                                style: const TextStyle(
-                                                    color: Color(0xFF68737D),
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 12))))),
-                            leftTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                    showTitles: true,
-                                    reservedSize: 40,
-                                    getTitlesWidget: (value, meta) =>
-                                        Padding(padding: const EdgeInsets.only(
-                                            right: 8.0),
-                                            child: Text('${value.toInt()}°C',
-                                                style: const TextStyle(
-                                                    color: Color(0xFF68737D),
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 12)))))),
-                        borderData: FlBorderData(show: true),
-                        lineBarsData: [
-                          LineChartBarData(
-                              spots: _createSuhuChartData(),
-                              isCurved: true,
-                              color: Colors.red,
-                              barWidth: 3,
-                              belowBarData: BarAreaData(
-                                  show: true,
-                                  gradient: LinearGradient(
-                                      colors: [
-                                        Colors.red.withValues(alpha: 0.3),
-                                        Colors.red.withValues(alpha: 0.0)
-                                      ],
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter)),
-                              dotData: const FlDotData(show: false))
-                        ])),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text('Humidity (Kelembaban)',
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.text)),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 200,
-                    child: _logs.isEmpty
-                        ? const Center(child: Text("Menunggu data..."))
-                        : LineChart(LineChartData(
-                        gridData: const FlGridData(show: true),
-                        titlesData: FlTitlesData(
-                            topTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false)),
-                            rightTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false)),
-                            bottomTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                    showTitles: true,
-                                    reservedSize: 35,
-                                    getTitlesWidget: (value, meta) =>
-                                        Padding(
-                                            padding:
-                                            const EdgeInsets.only(top: 8.0),
-                                            child: Text(_formatTimeLabel(value),
-                                                style: const TextStyle(
-                                                    color: Color(0xFF68737D),
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 12))))),
-                            leftTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                    showTitles: true,
-                                    reservedSize: 40,
-                                    getTitlesWidget: (value, meta) =>
-                                        Padding(padding: const EdgeInsets.only(
-                                            right: 8.0),
-                                            child: Text('${value.toInt()}%',
-                                                style: const TextStyle(
-                                                    color: Color(0xFF68737D),
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 12)))))),
-                        borderData: FlBorderData(show: true),
-                        lineBarsData: [
-                          LineChartBarData(
-                              spots: _createKelembabanChartData(),
-                              isCurved: true,
-                              color: Colors.blue,
-                              barWidth: 3,
-                              belowBarData: BarAreaData(
-                                  show: true,
-                                  gradient: LinearGradient(
-                                      colors: [
-                                        Colors.blue
-                                            .withValues(alpha: 0.3),
-                                        Colors.blue.withValues(alpha: 0.0)
-                                      ],
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter)),
-                              dotData: const FlDotData(show: false))
-                        ])),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              margin: const EdgeInsets.all(16.0),
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.grey.withValues(alpha: 0.2),
-                      spreadRadius: 2,
-                      blurRadius: 8,
-                      offset: const Offset(0, 4))
-                ],
-              ),
-              child: Column(
-                children: [
-                  Text('Log History ${_useDummyData ? "(DUMMY)" : ""}',
-                      style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.text)),
-                  _isLoading
-                      ? const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: CircularProgressIndicator())
-                      : paginatedLogs.isEmpty
-                      ? const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text("Belum ada riwayat data."))
-                      : ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: paginatedLogs.length,
-                    itemBuilder: (context, index) {
-                      final log = paginatedLogs[index];
-                      final timestamp =
-                      log['timestamp'] as Timestamp?;
-                      final formattedDate = timestamp != null
-                          ? '${timestamp
-                          .toDate()
-                          .day}-${timestamp
-                          .toDate()
-                          .month}-${timestamp
-                          .toDate()
-                          .year} ${timestamp
-                          .toDate()
-                          .hour}:${timestamp
-                          .toDate()
-                          .minute}'
-                          : 'No timestamp';
-                      return ListTile(
-                        title: Text(
-                            'Suhu: ${log['suhu']?.toStringAsFixed(2) ??
-                                'N/A'}°C, Kelembaban: ${log['kelembaban']
-                                ?.toStringAsFixed(2) ?? 'N/A'}%'),
-                        subtitle: Text('Timestamp: $formattedDate'),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_sharp,
-                              color: Colors.redAccent),
-                          onPressed: () => _deleteLog(log['id']),
+              const SizedBox(height: 20),
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _displayData.isEmpty
+                      ? const Center(
+                          child: Text(
+                              "Tidak ada data pada rentang tanggal yang dipilih."))
+                      : RepaintBoundary(
+                          key: _chartKey,
+                          child: Container(
+                            height: 400,
+                            padding: const EdgeInsets.fromLTRB(8, 20, 16, 8),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              borderRadius:
+                                  BorderRadius.all(Radius.circular(8)),
+                            ),
+                            child: LineChart(_buildChartData()),
+                          ),
                         ),
-                      );
-                    },
-                  ),
-                  if (totalLogs > _itemsPerPage)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.arrow_back_ios),
-                            onPressed: _currentPage > 1
-                                ? () {
-                              setState(() {
-                                _currentPage--;
-                              });
-                            }
-                                : null,
-                            color: AppColors.primary,
-                          ),
-                          Text('Page $_currentPage of $totalPages',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.text)),
-                          IconButton(
-                            icon: const Icon(Icons.arrow_forward_ios),
-                            onPressed: _currentPage < totalPages
-                                ? () {
-                              setState(() {
-                                _currentPage++;
-                              });
-                            }
-                                : null,
-                            color: AppColors.primary,
-                          ),
-                        ],
-                      ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _isExporting ? null : _exportToExcel,
+                    icon: const Icon(Icons.grid_on),
+                    label: const Text('Export Excel'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey,
                     ),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton.icon(
+                    onPressed: _isExporting ? null : _exportToPdf,
+                    icon: const Icon(Icons.picture_as_pdf),
+                    label: const Text('Export PDF'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey,
+                    ),
+                  ),
                 ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showOptionsDialog(context),
-        backgroundColor: AppColors.primary,
-        child: const Icon(Icons.more_vert, color: Colors.white),
+    );
+  }
+
+  Widget _buildDatePicker(String label, DateTime date, VoidCallback onPressed) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12)),
+        InkWell(
+          onTap: onPressed,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey),
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(DateFormat('dd-MM-yyyy').format(date)),
+                const Icon(Icons.calendar_today, size: 16),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget bottomTitleWidgets(double value, TitleMeta meta) {
+    const style = TextStyle(
+      color: AppColors.primary,
+      fontWeight: FontWeight.bold,
+      fontSize: 10,
+    );
+    final date = DateTime.fromMillisecondsSinceEpoch(value.toInt());
+    String text;
+    if (_endDate.difference(_startDate).inDays > 2) {
+      text = DateFormat('d MMM').format(date);
+    } else {
+      text = DateFormat('HH:mm').format(date);
+    }
+    return Padding(
+        padding: const EdgeInsets.only(top: 8.0),
+        child: Text(text, style: style));
+  }
+
+  Widget leftTitleWidgets(double value, TitleMeta meta) {
+    const style = TextStyle(
+      color: AppColors.primary,
+      fontWeight: FontWeight.bold,
+      fontSize: 10,
+    );
+    return Text(meta.formattedValue, style: style);
+  }
+
+  LineChartData _buildChartData() {
+    return LineChartData(
+      lineBarsData: sensorConfigs.map((sensor) {
+        return LineChartBarData(
+          spots: _displayData.map((data) {
+            final double x = data.timestamp.millisecondsSinceEpoch.toDouble();
+            final double y = (data.values[sensor.key] ?? 0.0);
+            return FlSpot(x, y);
+          }).toList(),
+          isCurved: true,
+          color: sensor.color,
+          barWidth: 2.5,
+          isStrokeCapRound: true,
+          dotData: const FlDotData(show: false),
+          belowBarData: BarAreaData(show: false),
+        );
+      }).toList(),
+      titlesData: FlTitlesData(
+        leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: leftTitleWidgets,
+                reservedSize: 44)),
+        bottomTitles: AxisTitles(
+          sideTitles: SideTitles(
+            showTitles: true,
+            reservedSize: 32,
+            getTitlesWidget: bottomTitleWidgets,
+            interval: (_endDate.difference(_startDate).inMilliseconds / 5),
+          ),
+        ),
+        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        rightTitles:
+            const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+      ),
+      gridData: const FlGridData(show: true),
+      borderData: FlBorderData(
+          show: true,
+          border: Border.all(color: const Color(0xff37434d), width: 1)),
+      lineTouchData: LineTouchData(
+        touchTooltipData: LineTouchTooltipData(
+          // FIXED: Removed 'tooltipBgColor' as it caused an error.
+          // The tooltip will now use the default background color.
+          getTooltipItems: (touchedSpots) {
+            return touchedSpots.map((spot) {
+              final sensorLabel = sensorConfigs[spot.barIndex].label;
+              return LineTooltipItem(
+                '$sensorLabel\n${spot.y.toStringAsFixed(2)}',
+                TextStyle(
+                    color: sensorConfigs[spot.barIndex].color,
+                    fontWeight: FontWeight.bold),
+              );
+            }).toList();
+          },
+        ),
       ),
     );
   }

@@ -2,24 +2,56 @@
 
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:excel/excel.dart' hide Border;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:hydrohealth/utils/colors.dart';
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:permission_handler/permission_handler.dart';
-import 'package:printing/printing.dart';
 
-// Model Data Sensor
+// =======================================================================
+// TOP-LEVEL FUNCTION FOR EXCEL EXPORT (ISOLATE / COMPUTE)
+// =======================================================================
+
+/// Generates Excel file bytes in a background isolate.
+Future<Uint8List?> _generateExcelBytes(List<SensorData> data) async {
+  final excel = Excel.createExcel();
+  final Sheet sheet = excel['Data Monitoring (Rata-rata 5 Menit)'];
+
+  final List<String> sensorLabels = sensorConfigs.map((s) => s.label).toList();
+  final List<TextCellValue> headers = [
+    TextCellValue('Waktu'),
+    ...sensorLabels.map(TextCellValue.new)
+  ];
+  sheet.appendRow(headers);
+
+  for (var entry in data) {
+    final List<CellValue> row = [
+      TextCellValue(DateFormat('yyyy-MM-dd HH:mm').format(entry.timestamp)),
+      ...sensorConfigs.map((s) {
+        final value = entry.values[s.key];
+        return (value is num)
+            ? DoubleCellValue(value.toDouble())
+            : TextCellValue(value?.toString() ?? 'N/A');
+      })
+    ];
+    sheet.appendRow(row);
+  }
+
+  final fileBytes = excel.save();
+  return (fileBytes != null) ? Uint8List.fromList(fileBytes) : null;
+}
+
+// =======================================================================
+// DATA MODELS AND CONFIGS
+// =======================================================================
+
 class SensorData {
   final DateTime timestamp;
   final Map<String, dynamic> values;
@@ -27,7 +59,6 @@ class SensorData {
   SensorData({required this.timestamp, required this.values});
 }
 
-// Konfigurasi Sensor
 class SensorConfig {
   final String key;
   final String label;
@@ -49,6 +80,10 @@ final List<SensorConfig> sensorConfigs = [
       key: 'flow_rate_lpm', label: 'Aliran (L/min)', color: Colors.purple),
 ];
 
+// =======================================================================
+// WIDGET
+// =======================================================================
+
 class MonitoringPage extends StatefulWidget {
   const MonitoringPage({super.key});
 
@@ -63,6 +98,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 7));
   DateTime _endDate = DateTime.now();
   bool _isLoading = true;
+  bool _isExporting = false;
 
   @override
   void initState() {
@@ -196,120 +232,78 @@ class _MonitoringPageState extends State<MonitoringPage> {
         } else {
           _endDate = picked;
         }
-        _filterAndDownsampleData(); // Otomatis filter setelah tanggal dipilih
+        _filterAndDownsampleData();
       });
     }
   }
 
-  Future<void> _exportToExcel() async {
-    if (_displayData.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Tidak ada data untuk diekspor.")));
-      return;
-    }
-
-    final excel = Excel.createExcel();
-    final Sheet sheet = excel['Data Monitoring (Rata-rata 5 Menit)'];
-
-    final List<TextCellValue> headers = [
-      'Waktu',
-      ...sensorConfigs.map((s) => s.label)
-    ].map((header) => TextCellValue(header)).toList();
-    sheet.appendRow(headers);
-
-    for (var data in _displayData) {
-      final List<CellValue> row = [
-        TextCellValue(DateFormat('yyyy-MM-dd HH:mm').format(data.timestamp)),
-        ...sensorConfigs.map((s) {
-          final value = data.values[s.key];
-          if (value is num) {
-            return DoubleCellValue(value.toDouble());
-          }
-          return TextCellValue(value?.toString() ?? 'N/A');
-        })
-      ];
-      sheet.appendRow(row);
-    }
-
-    var status = await Permission.storage.status;
-    if (!status.isGranted) {
-      await Permission.storage.request();
-    }
-
-    final directory = await getExternalStorageDirectory();
-    final path = '${directory!.path}/DataMonitoring_RataRata.xlsx';
-    final fileBytes = excel.save();
-
-    if (fileBytes != null) {
-      File(path)
-        ..createSync(recursive: true)
-        ..writeAsBytesSync(fileBytes);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Berhasil diekspor ke $path')));
-      OpenFile.open(path);
-    }
-  }
-
-  Future<Uint8List> _captureChart() async {
-    RenderRepaintBoundary boundary =
-        _chartKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
-    ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-    ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    return byteData!.buffer.asUint8List();
-  }
-
-  Future<void> _exportToPdf() async {
-    if (_displayData.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Tidak ada data untuk diekspor.")));
-      return;
-    }
-
-    final chartImageBytes = await _captureChart();
-    final chartImage = pw.MemoryImage(chartImageBytes);
-
-    final pdf = pw.Document();
-
-    final headers = [
-      'Waktu (Rata-rata 5 Menit)',
-      ...sensorConfigs.map((s) => s.label)
-    ];
-    final data = _displayData
-        .map((item) => [
-              DateFormat('yyyy-MM-dd HH:mm').format(item.timestamp),
-              ...sensorConfigs.map((s) =>
-                  (item.values[s.key] as double?)?.toStringAsFixed(2) ?? 'N/A')
-            ])
-        .toList();
-
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4.landscape,
-        build: (context) => [
-          pw.Header(
-              level: 0,
-              child: pw.Text("Laporan Data Monitoring Gabungan",
-                  textScaleFactor: 2)),
-          pw.Container(
-            height: 350,
-            width: double.infinity,
-            child: pw.Image(chartImage),
+  void _showExportingDialog() {
+    setState(() => _isExporting = true);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Text("Mengekspor data..."),
+            ],
           ),
-          pw.SizedBox(height: 20),
-          pw.Table.fromTextArray(
-            headers: headers,
-            data: data,
-            border: pw.TableBorder.all(),
-            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-            cellAlignment: pw.Alignment.center,
-            cellStyle: const pw.TextStyle(fontSize: 8),
-          ),
-        ],
-      ),
+        );
+      },
     );
+  }
 
-    await Printing.layoutPdf(
-        onLayout: (PdfPageFormat format) async => pdf.save());
+  void _hideExportingDialog() {
+    if (_isExporting && mounted) {
+      Navigator.of(context).pop();
+      setState(() => _isExporting = false);
+    }
+  }
+
+  Future<void> _exportToExcel() async {
+    if (_isExporting) return;
+    if (_displayData.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Tidak ada data untuk diekspor.")));
+      return;
+    }
+
+    _showExportingDialog();
+
+    try {
+      final Uint8List? fileBytes =
+          await compute(_generateExcelBytes, _displayData);
+      _hideExportingDialog();
+
+      if (fileBytes == null) {
+        throw Exception("Gagal membuat file Excel.");
+      }
+
+      var status = await Permission.storage.status;
+      if (!status.isGranted) {
+        status = await Permission.storage.request();
+      }
+
+      if (status.isGranted) {
+        final directory = await getExternalStorageDirectory();
+        final path = '${directory!.path}/DataMonitoring_RataRata.xlsx';
+        await File(path).writeAsBytes(fileBytes);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Berhasil diekspor ke $path')));
+        OpenFile.open(path);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Izin penyimpanan ditolak.")));
+      }
+    } catch (e) {
+      _hideExportingDialog();
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Terjadi kesalahan saat ekspor Excel: $e")));
+    }
   }
 
   @override
@@ -322,75 +316,64 @@ class _MonitoringPageState extends State<MonitoringPage> {
         backgroundColor: AppColors.primary,
         elevation: 2,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Card(
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    Expanded(
-                        child: _buildDatePicker("Dari", _startDate,
-                            () => _selectDate(context, true))),
-                    const SizedBox(width: 10),
-                    Expanded(
-                        child: _buildDatePicker("s.d.", _endDate,
-                            () => _selectDate(context, false))),
-                  ],
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Expanded(
+                          child: _buildDatePicker("Dari", _startDate,
+                              () => _selectDate(context, true))),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: _buildDatePicker("s.d.", _endDate,
+                              () => _selectDate(context, false))),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-            // Chart Section
-            Expanded(
-              child: _isLoading
+              const SizedBox(height: 20),
+              _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _displayData.isEmpty
                       ? const Center(
                           child: Text(
                               "Tidak ada data pada rentang tanggal yang dipilih."))
-                      : RepaintBoundary(
+                      : Container(
                           key: _chartKey,
-                          child: Container(
-                            padding: const EdgeInsets.fromLTRB(8, 20, 16, 8),
+                          height: 400,
+                          padding: const EdgeInsets.fromLTRB(8, 20, 16, 8),
+                          decoration: const BoxDecoration(
                             color: Colors.white,
-                            child: LineChart(_buildChartData()),
+                            borderRadius: BorderRadius.all(Radius.circular(8)),
                           ),
+                          child: LineChart(_buildChartData()),
                         ),
-            ),
-            // Export Buttons
-            Padding(
-              padding: const EdgeInsets.only(top: 16.0),
-              child: Row(
+              const SizedBox(height: 20),
+              Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   ElevatedButton.icon(
-                    onPressed: _exportToExcel, // Tombol export ke Excel
+                    onPressed: _isExporting ? null : _exportToExcel,
                     icon: const Icon(Icons.grid_on),
                     label: const Text('Export Excel'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  ElevatedButton.icon(
-                    onPressed: _exportToPdf, // Tombol export ke PDF
-                    icon: const Icon(Icons.picture_as_pdf),
-                    label: const Text('Export PDF'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey,
                     ),
                   ),
                 ],
               ),
-            )
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -423,15 +406,30 @@ class _MonitoringPageState extends State<MonitoringPage> {
   }
 
   Widget bottomTitleWidgets(double value, TitleMeta meta) {
-    const style = TextStyle(fontSize: 10);
+    const style = TextStyle(
+      color: AppColors.primary,
+      fontWeight: FontWeight.bold,
+      fontSize: 10,
+    );
     final date = DateTime.fromMillisecondsSinceEpoch(value.toInt());
     String text;
-    if (_endDate.difference(_startDate).inDays > 1) {
+    if (_endDate.difference(_startDate).inDays > 2) {
       text = DateFormat('d MMM').format(date);
     } else {
       text = DateFormat('HH:mm').format(date);
     }
-    return Text(text, style: style);
+    return Padding(
+        padding: const EdgeInsets.only(top: 8.0),
+        child: Text(text, style: style));
+  }
+
+  Widget leftTitleWidgets(double value, TitleMeta meta) {
+    const style = TextStyle(
+      color: AppColors.primary,
+      fontWeight: FontWeight.bold,
+      fontSize: 10,
+    );
+    return Text(meta.formattedValue, style: style);
   }
 
   LineChartData _buildChartData() {
@@ -452,13 +450,17 @@ class _MonitoringPageState extends State<MonitoringPage> {
         );
       }).toList(),
       titlesData: FlTitlesData(
-        leftTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: true, reservedSize: 44)),
+        leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: leftTitleWidgets,
+                reservedSize: 44)),
         bottomTitles: AxisTitles(
           sideTitles: SideTitles(
             showTitles: true,
             reservedSize: 32,
             getTitlesWidget: bottomTitleWidgets,
+            interval: (_endDate.difference(_startDate).inMilliseconds / 5),
           ),
         ),
         topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -475,7 +477,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
             return touchedSpots.map((spot) {
               final sensorLabel = sensorConfigs[spot.barIndex].label;
               return LineTooltipItem(
-                '$sensorLabel: ${spot.y.toStringAsFixed(2)}',
+                '$sensorLabel\n${spot.y.toStringAsFixed(2)}',
                 TextStyle(
                     color: sensorConfigs[spot.barIndex].color,
                     fontWeight: FontWeight.bold),

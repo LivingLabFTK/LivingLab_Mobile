@@ -1,4 +1,4 @@
-import 'package:buttons_tabbar/buttons_tabbar.dart';
+/*import 'package:buttons_tabbar/buttons_tabbar.dart';
 import 'package:flutter/material.dart';
 import 'package:hydrohealth/content/suhu_kelembaban.dart';
 import 'package:hydrohealth/content/nutrisi.dart';
@@ -69,4 +69,4 @@ class _NavigasiTabState extends State<NavigasiTab> {
       ),
     );
   }
-}
+}*/

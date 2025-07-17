@@ -1,5 +1,8 @@
-import 'package:flutter/material.dart';
+// lib/widgets/navbar.dart
+
 import 'package:circle_nav_bar/circle_nav_bar.dart';
+import 'package:flutter/material.dart';
+
 import '../utils/colors.dart';
 
 class CircleNavBarPage extends StatefulWidget {
@@ -29,14 +32,24 @@ class _CircleNavBarPageState extends State<CircleNavBarPage>
       extendBody: true,
       bottomNavigationBar: CircleNavBar(
         activeIcons: const [
-          Icon(Icons.home, color: AppColors.background),
-          Icon(Icons.computer, color: AppColors.background),
+          Icon(Icons.show_chart, color: AppColors.background),
+          Icon(Icons.flash_on, color: AppColors.background),
+          Icon(Icons.settings, color: AppColors.background),
           Icon(Icons.person, color: AppColors.background),
         ],
         inactiveIcons: const [
-          Text("Home", style: TextStyle(color: Color.fromRGBO(245, 245, 245, 1.0), fontWeight: FontWeight.bold),),
-          Text("Monitoring", style: TextStyle(color: Color.fromRGBO(245, 245, 245, 1.0), fontWeight: FontWeight.bold),),
-          Text("Account", style: TextStyle(color: Color.fromRGBO(245, 245, 245, 1.0), fontWeight: FontWeight.bold),),
+          Text("Monitoring",
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          Text("Realtime",
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          Text("Automasi",
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          Text("Account",
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         ],
         color: AppColors.primary,
         circleColor: AppColors.primary,
@@ -49,15 +62,16 @@ class _CircleNavBarPageState extends State<CircleNavBarPage>
           });
           _pageController.jumpToPage(_tabIndex);
         },
-
         cornerRadius: const BorderRadius.only(
           topLeft: Radius.circular(8),
           topRight: Radius.circular(8),
           bottomRight: Radius.circular(24),
           bottomLeft: Radius.circular(24),
         ),
-        shadowColor: AppColors.secondary.withValues(alpha: 0.5),
+        shadowColor: AppColors.secondary.withOpacity(0.5),
         elevation: 10,
+        tabCurve: Curves.linear,
+        iconCurve: Curves.linear,
       ),
       body: PageView(
         controller: _pageController,

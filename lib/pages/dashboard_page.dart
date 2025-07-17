@@ -1,7 +1,10 @@
+// lib/pages/dashboard_page.dart
+
 import 'package:flutter/material.dart';
 import 'package:hydrohealth/content/profile.dart';
-import 'package:hydrohealth/Content/home.dart';
-import 'package:hydrohealth/pages/navigasi_tab.dart';
+import 'package:hydrohealth/pages/automasi_page.dart';
+import 'package:hydrohealth/pages/monitoring_page.dart';
+import 'package:hydrohealth/pages/realtime_page.dart';
 import 'package:hydrohealth/widgets/navbar.dart';
 
 class Dashboard extends StatefulWidget {
@@ -12,13 +15,13 @@ class Dashboard extends StatefulWidget {
 }
 
 class _DashboardState extends State<Dashboard> {
-
   @override
   Widget build(BuildContext context) {
     return const CircleNavBarPage(
       pages: [
-        NavigasiTab(),
-        Home(),
+        MonitoringPage(),
+        RealtimePage(),
+        AutomasiPage(),
         Profile(),
       ],
     );

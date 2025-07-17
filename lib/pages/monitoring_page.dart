@@ -13,11 +13,37 @@ import 'package:hydrohealth/utils/colors.dart';
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
-// FIXED: permission_handler tidak lagi dibutuhkan untuk metode ini
-// import 'package:permission_handler/permission_handler.dart';
 
 // =======================================================================
-// TOP-LEVEL FUNCTION FOR EXCEL EXPORT (ISOLATE / COMPUTE)
+// DATA MODELS AND CONFIGS
+// =======================================================================
+
+class SensorData {
+  final DateTime timestamp;
+  final Map<String, dynamic> values;
+
+  SensorData({required this.timestamp, required this.values});
+}
+
+class SensorConfig {
+  final String key;
+  final String label;
+  final Color color;
+
+  SensorConfig({required this.key, required this.label, required this.color});
+}
+
+final List<SensorConfig> sensorConfigs = [
+  SensorConfig(key: 'tds1_ppm', label: 'TDS 1', color: Colors.red),
+  SensorConfig(key: 'tds2_ppm', label: 'TDS 2', color: Colors.orange),
+  SensorConfig(key: 'turbidity_ntu', label: 'Kekeruhan', color: Colors.brown),
+  SensorConfig(key: 'level1_percent', label: 'Level 1', color: Colors.cyan),
+  SensorConfig(key: 'level2_percent', label: 'Level 2', color: Colors.blue),
+  SensorConfig(key: 'flow_rate_lpm', label: 'Aliran', color: Colors.purple),
+];
+
+// =======================================================================
+// TOP-LEVEL FUNCTIONS FOR BACKGROUND PROCESSING
 // =======================================================================
 
 /// Generates Excel file bytes in a background isolate.
@@ -49,33 +75,67 @@ Future<Uint8List?> _generateExcelBytes(List<SensorData> data) async {
   return (fileBytes != null) ? Uint8List.fromList(fileBytes) : null;
 }
 
-// =======================================================================
-// DATA MODELS AND CONFIGS
-// =======================================================================
+/// Data class for passing parameters to the filter isolate.
+class FilterParams {
+  final List<SensorData> rawData;
+  final DateTime startDate;
+  final DateTime endDate;
 
-class SensorData {
-  final DateTime timestamp;
-  final Map<String, dynamic> values;
-
-  SensorData({required this.timestamp, required this.values});
+  FilterParams(this.rawData, this.startDate, this.endDate);
 }
 
-class SensorConfig {
-  final String key;
-  final String label;
-  final Color color;
+/// Filters and downsamples data in a background isolate.
+List<SensorData> _processDataInBackground(FilterParams params) {
+  if (params.rawData.isEmpty) {
+    return [];
+  }
 
-  SensorConfig({required this.key, required this.label, required this.color});
+  // 1. Filtering logic
+  final start = DateTime(
+      params.startDate.year, params.startDate.month, params.startDate.day);
+  final end = DateTime(params.endDate.year, params.endDate.month,
+      params.endDate.day, 23, 59, 59);
+
+  final filtered = params.rawData.where((item) {
+    return !item.timestamp.isBefore(start) && !item.timestamp.isAfter(end);
+  }).toList();
+
+  // 2. Downsampling logic
+  final Map<int, List<SensorData>> buckets = {};
+  const interval = Duration(minutes: 5);
+  final intervalMillis = interval.inMilliseconds;
+
+  for (var entry in filtered) {
+    final bucketKey =
+        (entry.timestamp.millisecondsSinceEpoch / intervalMillis).floor();
+    buckets.putIfAbsent(bucketKey, () => []).add(entry);
+  }
+
+  final List<SensorData> averagedData = [];
+  buckets.forEach((key, bucketEntries) {
+    if (bucketEntries.isEmpty) return;
+
+    final avgValues = <String, double>{};
+    for (var sensor in sensorConfigs) {
+      double sum = 0;
+      int count = 0;
+      for (var entry in bucketEntries) {
+        final value = entry.values[sensor.key];
+        if (value != null && value is num) {
+          sum += value;
+          count++;
+        }
+      }
+      avgValues[sensor.key] = count > 0 ? sum / count : 0.0;
+    }
+
+    final timestamp = DateTime.fromMillisecondsSinceEpoch(key * intervalMillis);
+    averagedData.add(SensorData(timestamp: timestamp, values: avgValues));
+  });
+
+  averagedData.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+  return averagedData;
 }
-
-final List<SensorConfig> sensorConfigs = [
-  SensorConfig(key: 'tds1_ppm', label: 'TDS 1', color: Colors.red),
-  SensorConfig(key: 'tds2_ppm', label: 'TDS 2', color: Colors.orange),
-  SensorConfig(key: 'turbidity_ntu', label: 'Kekeruhan', color: Colors.brown),
-  SensorConfig(key: 'level1_percent', label: 'Level 1', color: Colors.cyan),
-  SensorConfig(key: 'level2_percent', label: 'Level 2', color: Colors.blue),
-  SensorConfig(key: 'flow_rate_lpm', label: 'Aliran', color: Colors.purple),
-];
 
 // =======================================================================
 // WIDGET
@@ -93,8 +153,11 @@ class _MonitoringPageState extends State<MonitoringPage> {
   List<SensorData> _displayData = [];
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 7));
   DateTime _endDate = DateTime.now();
-  bool _isLoading = true;
-  bool _isExporting = false;
+
+  // --- DIUBAH: State loading dipisah ---
+  bool _isFetching = true; // Untuk loading awal
+  bool _isFiltering = false; // Untuk loading saat ganti tanggal/filter
+  bool _isExporting = false; // Untuk loading export
 
   late Map<String, bool> _visibleSensors;
 
@@ -136,85 +199,43 @@ class _MonitoringPageState extends State<MonitoringPage> {
         if (mounted) {
           setState(() {
             _rawData = processedData;
-            _filterAndDownsampleData();
-            _isLoading = false;
           });
+          // Panggil filter setelah data didapat
+          await _runFilter();
         }
-      } else {
-        if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Gagal mengambil data: $e")),
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFetching = false;
+        });
+      }
     }
   }
 
-  void _filterAndDownsampleData() {
-    if (_rawData.isEmpty) {
-      if (mounted) setState(() => _displayData = []);
-      return;
+  // --- DIUBAH: Fungsi ini sekarang memanggil 'compute' ---
+  Future<void> _runFilter() async {
+    if (mounted) {
+      setState(() {
+        _isFiltering = true;
+      });
     }
 
-    final start = DateTime(_startDate.year, _startDate.month, _startDate.day);
-    final end =
-        DateTime(_endDate.year, _endDate.month, _endDate.day, 23, 59, 59);
-
-    final filtered = _rawData.where((item) {
-      return !item.timestamp.isBefore(start) && !item.timestamp.isAfter(end);
-    }).toList();
-
-    final downsampled =
-        _downsampleWithAverage(filtered, const Duration(minutes: 5));
+    final params = FilterParams(_rawData, _startDate, _endDate);
+    final processedData = await compute(_processDataInBackground, params);
 
     if (mounted) {
       setState(() {
-        _displayData = downsampled;
+        _displayData = processedData;
+        _isFiltering = false;
       });
     }
-  }
-
-  List<SensorData> _downsampleWithAverage(
-      List<SensorData> data, Duration interval) {
-    if (data.isEmpty) return [];
-
-    final Map<int, List<SensorData>> buckets = {};
-    final intervalMillis = interval.inMilliseconds;
-
-    for (var entry in data) {
-      final bucketKey =
-          (entry.timestamp.millisecondsSinceEpoch / intervalMillis).floor();
-      buckets.putIfAbsent(bucketKey, () => []).add(entry);
-    }
-
-    final List<SensorData> averagedData = [];
-    buckets.forEach((key, bucketEntries) {
-      if (bucketEntries.isEmpty) return;
-
-      final avgValues = <String, double>{};
-      for (var sensor in sensorConfigs) {
-        double sum = 0;
-        int count = 0;
-        for (var entry in bucketEntries) {
-          final value = entry.values[sensor.key];
-          if (value != null && value is num) {
-            sum += value;
-            count++;
-          }
-        }
-        avgValues[sensor.key] = count > 0 ? sum / count : 0.0;
-      }
-
-      final timestamp =
-          DateTime.fromMillisecondsSinceEpoch(key * intervalMillis);
-      averagedData.add(SensorData(timestamp: timestamp, values: avgValues));
-    });
-
-    averagedData.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-    return averagedData;
   }
 
   Future<void> _selectDate(BuildContext context, bool isStartDate) async {
@@ -231,8 +252,9 @@ class _MonitoringPageState extends State<MonitoringPage> {
         } else {
           _endDate = picked;
         }
-        _filterAndDownsampleData();
       });
+      // Langsung jalankan filter di background
+      await _runFilter();
     }
   }
 
@@ -262,7 +284,6 @@ class _MonitoringPageState extends State<MonitoringPage> {
     }
   }
 
-  // --- PERUBAHAN UTAMA DI SINI ---
   Future<void> _exportToExcel() async {
     if (_isExporting) return;
     if (_displayData.isEmpty) {
@@ -281,7 +302,6 @@ class _MonitoringPageState extends State<MonitoringPage> {
         throw Exception("Gagal membuat file Excel.");
       }
 
-      // 1. Simpan ke direktori temporary (tidak butuh izin)
       final directory = await getTemporaryDirectory();
       final path = '${directory.path}/DataMonitoring_RataRata.xlsx';
       final file = File(path);
@@ -289,9 +309,8 @@ class _MonitoringPageState extends State<MonitoringPage> {
 
       _hideExportingDialog();
 
-      // 2. Langsung buka file tersebut. Pengguna bisa save dari aplikasi Excel-nya.
       final result = await OpenFile.open(path);
-      if (result.type != ResultType.done) {
+      if (result.type != ResultType.done && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text("Tidak dapat membuka file: ${result.message}")),
@@ -299,8 +318,10 @@ class _MonitoringPageState extends State<MonitoringPage> {
       }
     } catch (e) {
       _hideExportingDialog();
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Terjadi kesalahan saat ekspor Excel: $e")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Terjadi kesalahan saat ekspor Excel: $e")));
+      }
     }
   }
 
@@ -338,24 +359,36 @@ class _MonitoringPageState extends State<MonitoringPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
-              _buildFilterChips(),
               const SizedBox(height: 20),
-              _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _displayData.isEmpty
-                      ? const Center(
-                          child: Text(
-                              "Tidak ada data pada rentang tanggal yang dipilih."))
-                      : Container(
-                          height: 400,
-                          padding: const EdgeInsets.fromLTRB(8, 20, 16, 8),
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.all(Radius.circular(8)),
+
+              // --- DIUBAH: Logika untuk menampilkan loading/chart/state kosong ---
+              SizedBox(
+                height: 400,
+                child: _isFetching
+                    ? const Center(child: CircularProgressIndicator())
+                    : _rawData.isEmpty
+                        ? const Center(
+                            child: Text("Belum ada data dari sensor."))
+                        : Stack(
+                            children: [
+                              LineChart(_buildChartData()),
+                              if (_isFiltering)
+                                Container(
+                                  color: Colors.white.withOpacity(0.5),
+                                  child: const Center(
+                                      child: CircularProgressIndicator()),
+                                ),
+                              if (!_isFiltering && _displayData.isEmpty)
+                                const Center(
+                                    child: Text(
+                                        "Tidak ada data pada rentang tanggal yang dipilih."))
+                            ],
                           ),
-                          child: LineChart(_buildChartData()),
-                        ),
+              ),
+
+              const SizedBox(height: 10),
+              if (!_isFetching && _rawData.isNotEmpty)
+                _buildInteractiveLegend(),
               const SizedBox(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -379,27 +412,46 @@ class _MonitoringPageState extends State<MonitoringPage> {
     );
   }
 
-  Widget _buildFilterChips() {
+  Widget _buildInteractiveLegend() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
       child: Wrap(
-        spacing: 8.0,
-        runSpacing: 4.0,
+        spacing: 16.0,
+        runSpacing: 8.0,
         children: sensorConfigs.map((sensor) {
-          return FilterChip(
-            label: Text(sensor.label),
-            selected: _visibleSensors[sensor.key] ?? false,
-            onSelected: (bool selected) {
+          final bool isVisible = _visibleSensors[sensor.key] ?? false;
+          return InkWell(
+            onTap: () {
               setState(() {
-                _visibleSensors[sensor.key] = selected;
+                _visibleSensors[sensor.key] = !isVisible;
               });
             },
-            selectedColor: sensor.color.withOpacity(0.3),
-            checkmarkColor: Colors.black,
-            labelStyle: TextStyle(
-              color: (_visibleSensors[sensor.key] ?? false)
-                  ? Colors.black
-                  : Colors.black54,
+            borderRadius: BorderRadius.circular(4.0),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 12,
+                    height: 12,
+                    color:
+                        isVisible ? sensor.color : Colors.grey.withOpacity(0.5),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    sensor.label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isVisible ? Colors.black : Colors.grey,
+                      decoration: isVisible
+                          ? TextDecoration.none
+                          : TextDecoration.lineThrough,
+                    ),
+                  )
+                ],
+              ),
             ),
           );
         }).toList(),

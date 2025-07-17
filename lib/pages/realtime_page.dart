@@ -146,8 +146,10 @@ class _RealtimePageState extends State<RealtimePage> {
           _buildSensorCard('TDS 1', tds1, 'PPM', Icons.water_drop),
           _buildSensorCard('TDS 2', tds2, 'PPM', Icons.water_drop_outlined),
           _buildSensorCard('Kekeruhan', turbidity, 'NTU', Icons.cloudy_snowing),
-          _buildSensorCard('Level 1', level1, '%', Icons.align_vertical_bottom),
-          _buildSensorCard('Level 2', level2, '%', Icons.align_vertical_center),
+          _buildSensorCard(
+              'Water Level 1', level1, '%', Icons.align_vertical_bottom),
+          _buildSensorCard(
+              'Water Level 2', level2, '%', Icons.align_vertical_center),
           _buildSensorCard('Aliran Air', flowRate, 'L/min', Icons.waves),
         ],
       ),

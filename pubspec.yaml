@@ -65,7 +65,7 @@ dependencies:
   path_provider: ^2.1.5
   percent_indicator: ^4.2.3
   permission_handler: ^12.0.1
-  provider: ^6.1.2
+  provider: ^6.1.5
   shared_preferences: ^2.2.3
   speedometer_chart: ^1.0.8
   url_launcher: ^6.3.0

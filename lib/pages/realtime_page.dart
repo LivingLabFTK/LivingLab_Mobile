@@ -3,6 +3,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart'; // Pastikan Anda sudah punya package intl
 
 import '../utils/colors.dart';
 
@@ -14,13 +15,6 @@ class RealtimePage extends StatefulWidget {
 }
 
 class _RealtimePageState extends State<RealtimePage> {
-  // Mengarahkan ke root database untuk mendapatkan data terbaru
-  final DatabaseReference ref = FirebaseDatabase.instanceFor(
-          app: Firebase.app(),
-          databaseURL:
-              'https://hydrohealth-project-9cf6c-default-rtdb.asia-southeast1.firebasedatabase.app/')
-      .ref('Hydroponic_Data');
-
   // Variabel untuk menampung setiap nilai sensor
   String tds1 = '...';
   String tds2 = '...';
@@ -30,46 +24,68 @@ class _RealtimePageState extends State<RealtimePage> {
   String flowRate = '...';
   String lastUpdate = '...';
 
+  // Pointer ke database
+  late DatabaseReference _dataRef;
+
   @override
   void initState() {
     super.initState();
+    // 1. Membuat path dinamis berdasarkan tanggal hari ini
+    _initializeDbRef();
+    // 2. Mendengarkan data dari path yang sudah benar
     _listenToRealtimeDatabase();
   }
 
-  void _listenToRealtimeDatabase() {
-    // Mengambil 1 data terakhir yang masuk
-    ref.limitToLast(1).onValue.listen((event) {
-      if (!mounted || event.snapshot.value == null) return;
+  // Fungsi untuk mendapatkan path data hari ini
+  void _initializeDbRef() {
+    final String todayPath = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    _dataRef = FirebaseDatabase.instanceFor(
+      app: Firebase.app(),
+      databaseURL:
+          'https://hydrohealth-project-9cf6c-default-rtdb.asia-southeast1.firebasedatabase.app/',
+    ).ref("Hydroponic_Data/$todayPath");
+  }
 
-      // Struktur data disesuaikan dengan JSON yang kamu berikan
+  void _listenToRealtimeDatabase() {
+    // 3. Mengambil 1 data terakhir dari path tanggal hari ini
+    // Kita urutkan berdasarkan key (yaitu waktu "HH-mm") untuk mendapatkan yg terbaru
+    _dataRef.orderByKey().limitToLast(1).onValue.listen((event) {
+      if (!mounted || event.snapshot.value == null) {
+        setState(() {
+          lastUpdate = "Menunggu data...";
+        });
+        return;
+      }
+
+      // 4. Parsing data dengan struktur yang benar
       final data = Map<String, dynamic>.from(event.snapshot.value as Map);
-      final latestEntryKey = data.keys.first;
-      final latestEntry = Map<String, dynamic>.from(data[latestEntryKey]);
+      final timeKey = data.keys.first; // Ini adalah key waktu, cth: "03-57"
+      final latestData = Map<String, dynamic>.from(data[timeKey]);
 
       setState(() {
-        tds1 = (latestEntry['tds1_ppm'] ?? 'N/A').toString();
-        tds2 = (latestEntry['tds2_ppm'] ?? 'N/A').toString();
-        turbidity = (latestEntry['turbidity_ntu'] ?? 'N/A').toString();
-        level1 = (latestEntry['level1_percent'] ?? 'N/A').toString();
-        level2 = (latestEntry['level2_percent'] ?? 'N/A').toString();
-        flowRate = (latestEntry['flow_rate_lpm'] ?? 'N/A').toString();
+        tds1 = (latestData['tds1_ppm'] ?? 'N/A').toString();
+        tds2 = (latestData['tds2_ppm'] ?? 'N/A').toString();
+        turbidity = (latestData['turbidity_ntu'] ?? 'N/A').toString();
+        level1 = (latestData['level1_percent'] ?? 'N/A').toString();
+        level2 = (latestData['level2_percent'] ?? 'N/A').toString();
+        flowRate = (latestData['flow_rate_lpm'] ?? 'N/A').toString();
 
-        // Menampilkan waktu update terakhir
-        final timestamp = DateTime.tryParse(latestEntry['timestamp_iso'] ?? '');
+        // Menampilkan waktu update terakhir dari timestamp
+        final timestamp = DateTime.tryParse(latestData['timestamp_iso'] ?? '');
         if (timestamp != null) {
-          lastUpdate =
-              "Update: ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}:${timestamp.second.toString().padLeft(2, '0')}";
+          lastUpdate = "Update: ${DateFormat('HH:mm:ss').format(timestamp)}";
         }
       });
     }, onError: (error) {
-      // Handle error jika ada
       setState(() {
         lastUpdate = "Gagal memuat data";
       });
+      // Tampilkan error di console untuk debugging
+      print("Error listening to database: $error");
     });
   }
 
-  // Widget template untuk setiap kartu sensor
+  // Widget template untuk setiap kartu sensor (tidak ada perubahan di sini)
   Widget _buildSensorCard(
       String title, String value, String unit, IconData icon) {
     return Card(
@@ -127,7 +143,6 @@ class _RealtimePageState extends State<RealtimePage> {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          // Menampilkan kartu sensor sesuai permintaan baru
           _buildSensorCard('TDS 1', tds1, 'PPM', Icons.water_drop),
           _buildSensorCard('TDS 2', tds2, 'PPM', Icons.water_drop_outlined),
           _buildSensorCard('Kekeruhan', turbidity, 'NTU', Icons.cloudy_snowing),

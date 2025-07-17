@@ -81,13 +81,17 @@ class _MonitoringPageState extends State<MonitoringPage> {
         final data = snapshot.value as Map<dynamic, dynamic>;
         final List<SensorData> processedData = [];
 
-        data.forEach((key, value) {
-          if (value is Map<dynamic, dynamic> &&
-              value.containsKey('timestamp_iso')) {
-            processedData.add(SensorData(
-              timestamp: DateTime.parse(value['timestamp_iso']),
-              values: Map<String, dynamic>.from(value),
-            ));
+        data.forEach((dateKey, entries) {
+          if (entries is Map<dynamic, dynamic>) {
+            entries.forEach((entryKey, entryValue) {
+              if (entryValue is Map<dynamic, dynamic> &&
+                  entryValue.containsKey('timestamp_iso')) {
+                processedData.add(SensorData(
+                  timestamp: DateTime.parse(entryValue['timestamp_iso']),
+                  values: Map<String, dynamic>.from(entryValue),
+                ));
+              }
+            });
           }
         });
 

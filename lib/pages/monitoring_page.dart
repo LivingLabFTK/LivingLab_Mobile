@@ -49,24 +49,6 @@ final List<SensorConfig> sensorConfigs = [
       key: 'flow_rate_lpm', label: 'Aliran (L/min)', color: Colors.purple),
 ];
 
-final List<Map<String, String>> _sensorList = [
-  {'key': 'tds1', 'label': 'TDS 1'},
-  {'key': 'tds2', 'label': 'TDS 2'},
-  {'key': 'turbidity', 'label': 'Kekeruhan'},
-  {'key': 'level1', 'label': 'Level 1'},
-  {'key': 'level2', 'label': 'Level 2'},
-  {'key': 'flowRate', 'label': 'Aliran Air'},
-];
-
-Set<String> _selectedSensors = {
-  'tds1',
-  'tds2',
-  'turbidity',
-  'level1',
-  'level2',
-  'flowRate'
-};
-
 class MonitoringPage extends StatefulWidget {
   const MonitoringPage({super.key});
 
@@ -493,7 +475,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
             return touchedSpots.map((spot) {
               final sensorLabel = sensorConfigs[spot.barIndex].label;
               return LineTooltipItem(
-                '${sensorLabel}: ${spot.y.toStringAsFixed(2)}',
+                '$sensorLabel: ${spot.y.toStringAsFixed(2)}',
                 TextStyle(
                     color: sensorConfigs[spot.barIndex].color,
                     fontWeight: FontWeight.bold),

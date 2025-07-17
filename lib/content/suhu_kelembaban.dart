@@ -32,20 +32,17 @@ class SuhuKelembaban extends StatefulWidget {
 }
 
 class _SuhuKelembabanState extends State<SuhuKelembaban> {
-  // ================== SAKLAR MODE ==================
   // Ganti jadi 'false' untuk kembali menggunakan data asli Firebase
   final bool _useDummyData = true;
 
-  // ===============================================
-
   // Variabel untuk Firebase (dinonaktifkan jika pake dummy)
   final DatabaseReference monitoringRef = FirebaseDatabase.instanceFor(
-          app: Firebase.app(),
-          databaseURL:
-              'https://hydrohealth-project-9cf6c-default-rtdb.asia-southeast1.firebasedatabase.app')
+      app: Firebase.app(),
+      databaseURL:
+      'https://hydrohealth-project-9cf6c-default-rtdb.asia-southeast1.firebasedatabase.app')
       .ref('Monitoring');
   final CollectionReference _firestoreRef =
-      FirebaseFirestore.instance.collection('SuhuKelembabanLog');
+  FirebaseFirestore.instance.collection('SuhuKelembabanLog');
   StreamSubscription? _dataSubscription;
 
   List<Map<String, dynamic>> _logs = [];
@@ -85,7 +82,10 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
       final dummyKelembaban = 60.0 + random.nextDouble() * 10.0;
 
       final dummyLog = {
-        'id': DateTime.now().millisecondsSinceEpoch.toString(),
+        'id': DateTime
+            .now()
+            .millisecondsSinceEpoch
+            .toString(),
         'suhu': dummySuhu,
         'kelembaban': dummyKelembaban,
         'timestamp': Timestamp.now(),
@@ -99,7 +99,6 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
     });
   }
 
-  // --- FUNGSI-FUNGSI FIREBASE (Aman, tidak akan jalan jika _useDummyData = true) ---
   void _listenAndLogData() {
     _dataSubscription = monitoringRef.onValue.listen((event) {
       final data = event.snapshot.value as Map<dynamic, dynamic>?;
@@ -152,18 +151,14 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
   }
 
   void _deleteLog(String id) async {
-    // Fungsi ini tidak akan berjalan di mode dummy
     if (_useDummyData) return;
     try {
       await _firestoreRef.doc(id).delete();
       _fetchLogs();
-    } catch (e) {
-      // handle error
-    }
+    } catch (e) {}
   }
 
   void _deleteAllLogs() async {
-    // Fungsi ini tidak akan berjalan di mode dummy
     if (_useDummyData) return;
     try {
       final batch = FirebaseFirestore.instance.batch();
@@ -174,12 +169,14 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
       await batch.commit();
       _fetchLogs();
     } catch (e) {
-      // handle error
+
     }
   }
 
   Future<void> _requestPermission() async {
-    if (await Permission.storage.request().isGranted) {
+    if (await Permission.storage
+        .request()
+        .isGranted) {
       _exportLogsToExcel();
     } else {
       if (!mounted) return;
@@ -202,7 +199,8 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
     for (var log in _logs) {
       final timestamp = (log['timestamp'] as Timestamp).toDate();
       final formattedDate =
-          '${timestamp.day}-${timestamp.month}-${timestamp.year} ${timestamp.hour}:${timestamp.minute}:${timestamp.second}';
+          '${timestamp.day}-${timestamp.month}-${timestamp.year} ${timestamp
+          .hour}:${timestamp.minute}:${timestamp.second}';
       sheetObject.appendRow([
         TextCellValue(formattedDate),
         DoubleCellValue((log['suhu'] as num).toDouble()),
@@ -240,8 +238,8 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
     }
   }
 
-  Future<String?> _showSaveFileDialog(
-      BuildContext context, String initialDirectory) async {
+  Future<String?> _showSaveFileDialog(BuildContext context,
+      String initialDirectory) async {
     TextEditingController fileNameController = TextEditingController();
     return showDialog<String>(
       context: context,
@@ -278,7 +276,10 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
     if (_logs.isEmpty) return [const FlSpot(0, 0)];
     var recentLogs = _logs.take(20).toList();
     var reversedLogs = recentLogs.reversed.toList();
-    return reversedLogs.asMap().entries.map((entry) {
+    return reversedLogs
+        .asMap()
+        .entries
+        .map((entry) {
       return FlSpot(
           entry.key.toDouble(), (entry.value['suhu'] ?? 0).toDouble());
     }).toList();
@@ -288,14 +289,21 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
     if (_logs.isEmpty) return [const FlSpot(0, 0)];
     var recentLogs = _logs.take(20).toList();
     var reversedLogs = recentLogs.reversed.toList();
-    return reversedLogs.asMap().entries.map((entry) {
+    return reversedLogs
+        .asMap()
+        .entries
+        .map((entry) {
       return FlSpot(
           entry.key.toDouble(), (entry.value['kelembaban'] ?? 0).toDouble());
     }).toList();
   }
 
   String _formatTimeLabel(double value) {
-    var recentLogs = _logs.take(20).toList().reversed.toList();
+    var recentLogs = _logs
+        .take(20)
+        .toList()
+        .reversed
+        .toList();
     int index = value.toInt();
     if (index < 0 || index >= recentLogs.length) return '';
     final log = recentLogs[index];
@@ -313,7 +321,7 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
           children: [
             ListTile(
               leading:
-                  const Icon(Icons.delete_forever, color: Colors.redAccent),
+              const Icon(Icons.delete_forever, color: Colors.redAccent),
               title: const Text('Delete All Logs'),
               onTap: () {
                 Navigator.pop(context);
@@ -343,7 +351,7 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
         ? totalLogs
         : startIndex + _itemsPerPage;
     final List<Map<String, dynamic>> paginatedLogs =
-        (totalLogs > 0) ? _logs.sublist(startIndex, endIndex) : [];
+    (totalLogs > 0) ? _logs.sublist(startIndex, endIndex) : [];
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -398,7 +406,8 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
                           const Icon(Icons.water_drop,
                               color: AppColors.secondary, size: 25),
                           Text(
-                              'Kelembapan: ${_currentKelembaban.toStringAsFixed(0)}%',
+                              'Kelembapan: ${_currentKelembaban.toStringAsFixed(
+                                  0)}%',
                               style: const TextStyle(
                                   color: Colors.white, fontSize: 15))
                         ],
@@ -424,48 +433,55 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
                     child: _logs.isEmpty
                         ? const Center(child: Text("Menunggu data..."))
                         : LineChart(LineChartData(
-                            gridData: const FlGridData(show: true),
-                            titlesData: FlTitlesData(
-                                topTitles: const AxisTitles(
-                                    sideTitles: SideTitles(showTitles: false)),
-                                rightTitles: const AxisTitles(
-                                    sideTitles: SideTitles(showTitles: false)),
-                                bottomTitles: AxisTitles(
-                                    sideTitles: SideTitles(
-                                        showTitles: true,
-                                        reservedSize: 35,
-                                        getTitlesWidget: (value, meta) => Padding(
+                        gridData: const FlGridData(show: true),
+                        titlesData: FlTitlesData(
+                            topTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false)),
+                            rightTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false)),
+                            bottomTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                    showTitles: true,
+                                    reservedSize: 35,
+                                    getTitlesWidget: (value, meta) =>
+                                        Padding(
                                             padding:
-                                                const EdgeInsets.only(top: 8.0),
+                                            const EdgeInsets.only(top: 8.0),
                                             child: Text(_formatTimeLabel(value),
                                                 style: const TextStyle(
                                                     color: Color(0xFF68737D),
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: 12))))),
-                                leftTitles: AxisTitles(
-                                    sideTitles: SideTitles(
-                                        showTitles: true,
-                                        reservedSize: 40,
-                                        getTitlesWidget: (value, meta) =>
-                                            Padding(padding: const EdgeInsets.only(right: 8.0), child: Text('${value.toInt()}°C', style: const TextStyle(color: Color(0xFF68737D), fontWeight: FontWeight.bold, fontSize: 12)))))),
-                            borderData: FlBorderData(show: true),
-                            lineBarsData: [
-                                LineChartBarData(
-                                    spots: _createSuhuChartData(),
-                                    isCurved: true,
-                                    color: Colors.red,
-                                    barWidth: 3,
-                                    belowBarData: BarAreaData(
-                                        show: true,
-                                        gradient: LinearGradient(
-                                            colors: [
-                                              Colors.red.withValues(alpha: 0.3),
-                                              Colors.red.withValues(alpha: 0.0)
-                                            ],
-                                            begin: Alignment.topCenter,
-                                            end: Alignment.bottomCenter)),
-                                    dotData: const FlDotData(show: false))
-                              ])),
+                            leftTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                    showTitles: true,
+                                    reservedSize: 40,
+                                    getTitlesWidget: (value, meta) =>
+                                        Padding(padding: const EdgeInsets.only(
+                                            right: 8.0),
+                                            child: Text('${value.toInt()}°C',
+                                                style: const TextStyle(
+                                                    color: Color(0xFF68737D),
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12)))))),
+                        borderData: FlBorderData(show: true),
+                        lineBarsData: [
+                          LineChartBarData(
+                              spots: _createSuhuChartData(),
+                              isCurved: true,
+                              color: Colors.red,
+                              barWidth: 3,
+                              belowBarData: BarAreaData(
+                                  show: true,
+                                  gradient: LinearGradient(
+                                      colors: [
+                                        Colors.red.withValues(alpha: 0.3),
+                                        Colors.red.withValues(alpha: 0.0)
+                                      ],
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter)),
+                              dotData: const FlDotData(show: false))
+                        ])),
                   ),
                   const SizedBox(height: 20),
                   const Text('Humidity (Kelembaban)',
@@ -479,49 +495,56 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
                     child: _logs.isEmpty
                         ? const Center(child: Text("Menunggu data..."))
                         : LineChart(LineChartData(
-                            gridData: const FlGridData(show: true),
-                            titlesData: FlTitlesData(
-                                topTitles: const AxisTitles(
-                                    sideTitles: SideTitles(showTitles: false)),
-                                rightTitles: const AxisTitles(
-                                    sideTitles: SideTitles(showTitles: false)),
-                                bottomTitles: AxisTitles(
-                                    sideTitles: SideTitles(
-                                        showTitles: true,
-                                        reservedSize: 35,
-                                        getTitlesWidget: (value, meta) => Padding(
+                        gridData: const FlGridData(show: true),
+                        titlesData: FlTitlesData(
+                            topTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false)),
+                            rightTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false)),
+                            bottomTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                    showTitles: true,
+                                    reservedSize: 35,
+                                    getTitlesWidget: (value, meta) =>
+                                        Padding(
                                             padding:
-                                                const EdgeInsets.only(top: 8.0),
+                                            const EdgeInsets.only(top: 8.0),
                                             child: Text(_formatTimeLabel(value),
                                                 style: const TextStyle(
                                                     color: Color(0xFF68737D),
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: 12))))),
-                                leftTitles: AxisTitles(
-                                    sideTitles: SideTitles(
-                                        showTitles: true,
-                                        reservedSize: 40,
-                                        getTitlesWidget: (value, meta) =>
-                                            Padding(padding: const EdgeInsets.only(right: 8.0), child: Text('${value.toInt()}%', style: const TextStyle(color: Color(0xFF68737D), fontWeight: FontWeight.bold, fontSize: 12)))))),
-                            borderData: FlBorderData(show: true),
-                            lineBarsData: [
-                                LineChartBarData(
-                                    spots: _createKelembabanChartData(),
-                                    isCurved: true,
-                                    color: Colors.blue,
-                                    barWidth: 3,
-                                    belowBarData: BarAreaData(
-                                        show: true,
-                                        gradient: LinearGradient(
-                                            colors: [
-                                              Colors.blue
-                                                  .withValues(alpha: 0.3),
-                                              Colors.blue.withValues(alpha: 0.0)
-                                            ],
-                                            begin: Alignment.topCenter,
-                                            end: Alignment.bottomCenter)),
-                                    dotData: const FlDotData(show: false))
-                              ])),
+                            leftTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                    showTitles: true,
+                                    reservedSize: 40,
+                                    getTitlesWidget: (value, meta) =>
+                                        Padding(padding: const EdgeInsets.only(
+                                            right: 8.0),
+                                            child: Text('${value.toInt()}%',
+                                                style: const TextStyle(
+                                                    color: Color(0xFF68737D),
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12)))))),
+                        borderData: FlBorderData(show: true),
+                        lineBarsData: [
+                          LineChartBarData(
+                              spots: _createKelembabanChartData(),
+                              isCurved: true,
+                              color: Colors.blue,
+                              barWidth: 3,
+                              belowBarData: BarAreaData(
+                                  show: true,
+                                  gradient: LinearGradient(
+                                      colors: [
+                                        Colors.blue
+                                            .withValues(alpha: 0.3),
+                                        Colors.blue.withValues(alpha: 0.0)
+                                      ],
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter)),
+                              dotData: const FlDotData(show: false))
+                        ])),
                   ),
                 ],
               ),
@@ -549,35 +572,47 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
                           color: AppColors.text)),
                   _isLoading
                       ? const Padding(
-                          padding: EdgeInsets.all(20),
-                          child: CircularProgressIndicator())
+                      padding: EdgeInsets.all(20),
+                      child: CircularProgressIndicator())
                       : paginatedLogs.isEmpty
-                          ? const Padding(
-                              padding: EdgeInsets.all(20),
-                              child: Text("Belum ada riwayat data."))
-                          : ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: paginatedLogs.length,
-                              itemBuilder: (context, index) {
-                                final log = paginatedLogs[index];
-                                final timestamp =
-                                    log['timestamp'] as Timestamp?;
-                                final formattedDate = timestamp != null
-                                    ? '${timestamp.toDate().day}-${timestamp.toDate().month}-${timestamp.toDate().year} ${timestamp.toDate().hour}:${timestamp.toDate().minute}'
-                                    : 'No timestamp';
-                                return ListTile(
-                                  title: Text(
-                                      'Suhu: ${log['suhu']?.toStringAsFixed(2) ?? 'N/A'}°C, Kelembaban: ${log['kelembaban']?.toStringAsFixed(2) ?? 'N/A'}%'),
-                                  subtitle: Text('Timestamp: $formattedDate'),
-                                  trailing: IconButton(
-                                    icon: const Icon(Icons.delete_sharp,
-                                        color: Colors.redAccent),
-                                    onPressed: () => _deleteLog(log['id']),
-                                  ),
-                                );
-                              },
-                            ),
+                      ? const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Text("Belum ada riwayat data."))
+                      : ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: paginatedLogs.length,
+                    itemBuilder: (context, index) {
+                      final log = paginatedLogs[index];
+                      final timestamp =
+                      log['timestamp'] as Timestamp?;
+                      final formattedDate = timestamp != null
+                          ? '${timestamp
+                          .toDate()
+                          .day}-${timestamp
+                          .toDate()
+                          .month}-${timestamp
+                          .toDate()
+                          .year} ${timestamp
+                          .toDate()
+                          .hour}:${timestamp
+                          .toDate()
+                          .minute}'
+                          : 'No timestamp';
+                      return ListTile(
+                        title: Text(
+                            'Suhu: ${log['suhu']?.toStringAsFixed(2) ??
+                                'N/A'}°C, Kelembaban: ${log['kelembaban']
+                                ?.toStringAsFixed(2) ?? 'N/A'}%'),
+                        subtitle: Text('Timestamp: $formattedDate'),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_sharp,
+                              color: Colors.redAccent),
+                          onPressed: () => _deleteLog(log['id']),
+                        ),
+                      );
+                    },
+                  ),
                   if (totalLogs > _itemsPerPage)
                     Padding(
                       padding: const EdgeInsets.only(top: 16.0),
@@ -588,10 +623,10 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
                             icon: const Icon(Icons.arrow_back_ios),
                             onPressed: _currentPage > 1
                                 ? () {
-                                    setState(() {
-                                      _currentPage--;
-                                    });
-                                  }
+                              setState(() {
+                                _currentPage--;
+                              });
+                            }
                                 : null,
                             color: AppColors.primary,
                           ),
@@ -603,10 +638,10 @@ class _SuhuKelembabanState extends State<SuhuKelembaban> {
                             icon: const Icon(Icons.arrow_forward_ios),
                             onPressed: _currentPage < totalPages
                                 ? () {
-                                    setState(() {
-                                      _currentPage++;
-                                    });
-                                  }
+                              setState(() {
+                                _currentPage++;
+                              });
+                            }
                                 : null,
                             color: AppColors.primary,
                           ),

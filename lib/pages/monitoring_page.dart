@@ -13,7 +13,8 @@ import 'package:hydrohealth/utils/colors.dart';
 import 'package:intl/intl.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
+// FIXED: permission_handler tidak lagi dibutuhkan untuk metode ini
+// import 'package:permission_handler/permission_handler.dart';
 
 // =======================================================================
 // TOP-LEVEL FUNCTION FOR EXCEL EXPORT (ISOLATE / COMPUTE)
@@ -68,16 +69,12 @@ class SensorConfig {
 }
 
 final List<SensorConfig> sensorConfigs = [
-  SensorConfig(key: 'tds1_ppm', label: 'TDS 1 (PPM)', color: Colors.red),
-  SensorConfig(key: 'tds2_ppm', label: 'TDS 2 (PPM)', color: Colors.orange),
-  SensorConfig(
-      key: 'turbidity_ntu',
-      label: 'Kekeruhan (NTU)',
-      color: Colors.lightGreenAccent),
-  SensorConfig(key: 'level1_percent', label: 'Level 1 (%)', color: Colors.cyan),
-  SensorConfig(key: 'level2_percent', label: 'Level 2 (%)', color: Colors.blue),
-  SensorConfig(
-      key: 'flow_rate_lpm', label: 'Aliran (L/min)', color: Colors.purple),
+  SensorConfig(key: 'tds1_ppm', label: 'TDS 1', color: Colors.red),
+  SensorConfig(key: 'tds2_ppm', label: 'TDS 2', color: Colors.orange),
+  SensorConfig(key: 'turbidity_ntu', label: 'Kekeruhan', color: Colors.brown),
+  SensorConfig(key: 'level1_percent', label: 'Level 1', color: Colors.cyan),
+  SensorConfig(key: 'level2_percent', label: 'Level 2', color: Colors.blue),
+  SensorConfig(key: 'flow_rate_lpm', label: 'Aliran', color: Colors.purple),
 ];
 
 // =======================================================================
@@ -92,7 +89,6 @@ class MonitoringPage extends StatefulWidget {
 }
 
 class _MonitoringPageState extends State<MonitoringPage> {
-  final GlobalKey _chartKey = GlobalKey();
   List<SensorData> _rawData = [];
   List<SensorData> _displayData = [];
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 7));
@@ -100,9 +96,12 @@ class _MonitoringPageState extends State<MonitoringPage> {
   bool _isLoading = true;
   bool _isExporting = false;
 
+  late Map<String, bool> _visibleSensors;
+
   @override
   void initState() {
     super.initState();
+    _visibleSensors = {for (var sensor in sensorConfigs) sensor.key: true};
     _fetchData();
   }
 
@@ -225,7 +224,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (picked != null) {
+    if (picked != null && mounted) {
       setState(() {
         if (isStartDate) {
           _startDate = picked;
@@ -263,6 +262,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
     }
   }
 
+  // --- PERUBAHAN UTAMA DI SINI ---
   Future<void> _exportToExcel() async {
     if (_isExporting) return;
     if (_displayData.isEmpty) {
@@ -276,28 +276,26 @@ class _MonitoringPageState extends State<MonitoringPage> {
     try {
       final Uint8List? fileBytes =
           await compute(_generateExcelBytes, _displayData);
-      _hideExportingDialog();
 
       if (fileBytes == null) {
         throw Exception("Gagal membuat file Excel.");
       }
 
-      var status = await Permission.storage.status;
-      if (!status.isGranted) {
-        status = await Permission.storage.request();
-      }
+      // 1. Simpan ke direktori temporary (tidak butuh izin)
+      final directory = await getTemporaryDirectory();
+      final path = '${directory.path}/DataMonitoring_RataRata.xlsx';
+      final file = File(path);
+      await file.writeAsBytes(fileBytes);
 
-      if (status.isGranted) {
-        final directory = await getExternalStorageDirectory();
-        final path = '${directory!.path}/DataMonitoring_RataRata.xlsx';
-        await File(path).writeAsBytes(fileBytes);
+      _hideExportingDialog();
 
+      // 2. Langsung buka file tersebut. Pengguna bisa save dari aplikasi Excel-nya.
+      final result = await OpenFile.open(path);
+      if (result.type != ResultType.done) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Berhasil diekspor ke $path')));
-        OpenFile.open(path);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Izin penyimpanan ditolak.")));
+          SnackBar(
+              content: Text("Tidak dapat membuka file: ${result.message}")),
+        );
       }
     } catch (e) {
       _hideExportingDialog();
@@ -320,6 +318,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Card(
                 elevation: 2,
@@ -339,6 +338,8 @@ class _MonitoringPageState extends State<MonitoringPage> {
                   ),
                 ),
               ),
+              const SizedBox(height: 10),
+              _buildFilterChips(),
               const SizedBox(height: 20),
               _isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -347,7 +348,6 @@ class _MonitoringPageState extends State<MonitoringPage> {
                           child: Text(
                               "Tidak ada data pada rentang tanggal yang dipilih."))
                       : Container(
-                          key: _chartKey,
                           height: 400,
                           padding: const EdgeInsets.fromLTRB(8, 20, 16, 8),
                           decoration: const BoxDecoration(
@@ -375,6 +375,34 @@ class _MonitoringPageState extends State<MonitoringPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Wrap(
+        spacing: 8.0,
+        runSpacing: 4.0,
+        children: sensorConfigs.map((sensor) {
+          return FilterChip(
+            label: Text(sensor.label),
+            selected: _visibleSensors[sensor.key] ?? false,
+            onSelected: (bool selected) {
+              setState(() {
+                _visibleSensors[sensor.key] = selected;
+              });
+            },
+            selectedColor: sensor.color.withOpacity(0.3),
+            checkmarkColor: Colors.black,
+            labelStyle: TextStyle(
+              color: (_visibleSensors[sensor.key] ?? false)
+                  ? Colors.black
+                  : Colors.black54,
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -433,22 +461,26 @@ class _MonitoringPageState extends State<MonitoringPage> {
   }
 
   LineChartData _buildChartData() {
+    final visibleLineBars = sensorConfigs
+        .where((sensor) => _visibleSensors[sensor.key] ?? false)
+        .map((sensor) {
+      return LineChartBarData(
+        spots: _displayData.map((data) {
+          final double x = data.timestamp.millisecondsSinceEpoch.toDouble();
+          final double y = (data.values[sensor.key] ?? 0.0);
+          return FlSpot(x, y);
+        }).toList(),
+        isCurved: true,
+        color: sensor.color,
+        barWidth: 2.5,
+        isStrokeCapRound: true,
+        dotData: const FlDotData(show: false),
+        belowBarData: BarAreaData(show: false),
+      );
+    }).toList();
+
     return LineChartData(
-      lineBarsData: sensorConfigs.map((sensor) {
-        return LineChartBarData(
-          spots: _displayData.map((data) {
-            final double x = data.timestamp.millisecondsSinceEpoch.toDouble();
-            final double y = (data.values[sensor.key] ?? 0.0);
-            return FlSpot(x, y);
-          }).toList(),
-          isCurved: true,
-          color: sensor.color,
-          barWidth: 2.5,
-          isStrokeCapRound: true,
-          dotData: const FlDotData(show: false),
-          belowBarData: BarAreaData(show: false),
-        );
-      }).toList(),
+      lineBarsData: visibleLineBars,
       titlesData: FlTitlesData(
         leftTitles: AxisTitles(
             sideTitles: SideTitles(
@@ -475,12 +507,12 @@ class _MonitoringPageState extends State<MonitoringPage> {
         touchTooltipData: LineTouchTooltipData(
           getTooltipItems: (touchedSpots) {
             return touchedSpots.map((spot) {
-              final sensorLabel = sensorConfigs[spot.barIndex].label;
+              final allBars =
+                  sensorConfigs.where((s) => _visibleSensors[s.key]!).toList();
+              final sensor = allBars[spot.barIndex];
               return LineTooltipItem(
-                '$sensorLabel\n${spot.y.toStringAsFixed(2)}',
-                TextStyle(
-                    color: sensorConfigs[spot.barIndex].color,
-                    fontWeight: FontWeight.bold),
+                '${sensor.label}\n${spot.y.toStringAsFixed(2)}',
+                TextStyle(color: sensor.color, fontWeight: FontWeight.bold),
               );
             }).toList();
           },

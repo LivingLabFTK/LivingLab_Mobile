@@ -36,10 +36,10 @@ class SensorConfig {
 final List<SensorConfig> sensorConfigs = [
   SensorConfig(key: 'tds1_ppm', label: 'TDS 1', color: Colors.red),
   SensorConfig(key: 'tds2_ppm', label: 'TDS 2', color: Colors.orange),
-  SensorConfig(key: 'turbidity_ntu', label: 'Kekeruhan', color: Colors.brown),
-  SensorConfig(key: 'level1_percent', label: 'Level 1', color: Colors.cyan),
-  SensorConfig(key: 'level2_percent', label: 'Level 2', color: Colors.blue),
-  SensorConfig(key: 'flow_rate_lpm', label: 'Aliran', color: Colors.purple),
+  SensorConfig(key: 'turbidity_ntu', label: 'Kekeruhan', color: Colors.green),
+  SensorConfig(key: 'level1_percent', label: 'Water Level 1', color: Colors.cyan),
+  SensorConfig(key: 'level2_percent', label: 'Water Level 2', color: Colors.blue),
+  SensorConfig(key: 'flow_rate_lpm', label: 'Aliran', color: Colors.teal),
 ];
 
 // =======================================================================

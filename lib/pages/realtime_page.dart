@@ -125,6 +125,10 @@ class _RealtimePageState extends State<RealtimePage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title:
             const Text('Realtime Data', style: TextStyle(color: Colors.white)),
         backgroundColor: AppColors.primary,

@@ -103,6 +103,7 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
+    - assets/
     - assets/images/
     - assets/fonts/
 
@@ -120,11 +121,11 @@ flutter:
     - family: SFMono
       fonts:
         - asset: assets/fonts/SF-Pro-Display-Regular.otf
-        #- asset: assets/fonts/SF-Mono-Semibold.otf
-        #- asset: assets/fonts/SF-Mono-Medium.otf
-        #- asset: assets/fonts/SF-Mono-SemiboldItalic.otf
-        #- asset: assets/fonts/SF-Mono-RegularItalic.otf
-        # - asset: assets/fonts/SF-Mono-MediumItalic.otf
+          #- asset: assets/fonts/SF-Mono-Semibold.otf
+          #- asset: assets/fonts/SF-Mono-Medium.otf
+          #- asset: assets/fonts/SF-Mono-SemiboldItalic.otf
+          #- asset: assets/fonts/SF-Mono-RegularItalic.otf
+          # - asset: assets/fonts/SF-Mono-MediumItalic.otf
           # - asset: assets/fonts/SF-Mono-LightItalic.otf
           # - asset: assets/fonts/SF-Mono-Light.otf
           # - asset: assets/fonts/SF-Mono-HeavyItalic.otf

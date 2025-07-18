@@ -36,20 +36,59 @@ class SensorConfig {
 final List<SensorConfig> sensorConfigs = [
   SensorConfig(key: 'tds1_ppm', label: 'TDS 1', color: Colors.red),
   SensorConfig(key: 'tds2_ppm', label: 'TDS 2', color: Colors.orange),
-  SensorConfig(key: 'turbidity_ntu', label: 'Kekeruhan', color: Colors.brown),
-  SensorConfig(
-      key: 'level1_percent', label: 'Water Level 1', color: Colors.cyan),
-  SensorConfig(
-      key: 'level2_percent', label: 'Water Level 2', color: Colors.blue),
-  SensorConfig(key: 'flow_rate_lpm', label: 'Aliran', color: Colors.purple),
+  SensorConfig(key: 'turbidity_ntu', label: 'Kekeruhan', color: Colors.lightGreen),
+  SensorConfig(key: 'level1_percent', label: 'Water Level 1', color: Colors.cyan),
+  SensorConfig(key: 'level2_percent', label: 'Water Level 2', color: Colors.blue),
+  SensorConfig(key: 'flow_rate_lpm', label: 'Aliran', color: Colors.pink),
 ];
 
 // =======================================================================
-// VIEWMODEL / "OTAK" APLIKASI
+// FIREBASE SERVICE
+// =======================================================================
+class FirebaseService {
+  final DatabaseReference _dbRef = FirebaseDatabase.instanceFor(
+    app: Firebase.app(),
+    databaseURL:
+        'https://hydrohealth-project-9cf6c-default-rtdb.asia-southeast1.firebasedatabase.app/',
+  ).ref('Hydroponic_Data');
+
+  Future<List<SensorData>> fetchSensorDataForDateRange(
+      DateTime startDate, DateTime endDate) async {
+    final List<SensorData> fetchedData = [];
+    final List<DateTime> datesToFetch = [];
+    for (int i = 0; i <= endDate.difference(startDate).inDays; i++) {
+      datesToFetch.add(startDate.add(Duration(days: i)));
+    }
+    final futures = datesToFetch.map((date) {
+      final dateString = DateFormat('yyyy-MM-dd').format(date);
+      return _dbRef.child(dateString).get();
+    }).toList();
+    final snapshots = await Future.wait(futures);
+    for (final snapshot in snapshots) {
+      if (snapshot.exists && snapshot.value != null) {
+        final entries = snapshot.value as Map<dynamic, dynamic>;
+        entries.forEach((entryKey, entryValue) {
+          if (entryValue is Map<dynamic, dynamic> &&
+              entryValue.containsKey('timestamp_iso')) {
+            fetchedData.add(SensorData(
+              timestamp: DateTime.parse(entryValue['timestamp_iso']),
+              values: Map<String, dynamic>.from(entryValue),
+            ));
+          }
+        });
+      }
+    }
+    return fetchedData;
+  }
+}
+
+// =======================================================================
+// VIEWMODEL
 // =======================================================================
 
 class MonitoringViewModel with ChangeNotifier {
-  List<SensorData> _rawData = [];
+  final FirebaseService _firebaseService;
+
   List<SensorData> _displayData = [];
   List<SensorData> get displayData => _displayData;
 
@@ -75,59 +114,32 @@ class MonitoringViewModel with ChangeNotifier {
     '1 Hari': const Duration(days: 1),
   };
 
-  MonitoringViewModel() {
+  MonitoringViewModel({required FirebaseService firebaseService})
+      : _firebaseService = firebaseService {
     _selectedInterval = intervalOptions.values.first;
     _visibleSensors = {for (var sensor in sensorConfigs) sensor.key: true};
-    _fetchData();
+    fetchAndProcessData();
   }
 
-  Future<void> _fetchData() async {
-    try {
-      final ref = FirebaseDatabase.instanceFor(
-        app: Firebase.app(),
-        databaseURL:
-            'https://hydrohealth-project-9cf6c-default-rtdb.asia-southeast1.firebasedatabase.app/',
-      ).ref('Hydroponic_Data');
-
-      final snapshot = await ref.get();
-      if (snapshot.exists && snapshot.value != null) {
-        final data = snapshot.value as Map<dynamic, dynamic>;
-        final List<SensorData> processedData = [];
-        data.forEach((dateKey, entries) {
-          if (entries is Map<dynamic, dynamic>) {
-            entries.forEach((entryKey, entryValue) {
-              if (entryValue is Map<dynamic, dynamic> &&
-                  entryValue.containsKey('timestamp_iso')) {
-                processedData.add(SensorData(
-                  timestamp: DateTime.parse(entryValue['timestamp_iso']),
-                  values: Map<String, dynamic>.from(entryValue),
-                ));
-              }
-            });
-          }
-        });
-        _rawData = processedData
-          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
-        await _runFilter();
-      }
-    } catch (e) {
-      // Handle error
-    } finally {
-      _isFetching = false;
+  Future<void> fetchAndProcessData() async {
+    if (!_isFetching) {
+      _isFiltering = true;
       notifyListeners();
     }
-  }
 
-  Future<void> _runFilter() async {
-    _isFiltering = true;
-    notifyListeners();
-
-    final params =
-        FilterParams(_rawData, _startDate, _endDate, _selectedInterval);
-    _displayData = await compute(_processDataInBackground, params);
-
-    _isFiltering = false;
-    notifyListeners();
+    try {
+      final fetchedData = await _firebaseService.fetchSensorDataForDateRange(
+          _startDate, _endDate);
+      final downsamplingParams =
+          DownsamplingParams(fetchedData, _selectedInterval);
+      _displayData = await compute(_processDownsampling, downsamplingParams);
+    } catch (e) {
+      print("Error processing data: $e");
+    } finally {
+      _isFetching = false;
+      _isFiltering = false;
+      notifyListeners();
+    }
   }
 
   void updateDate(DateTime newDate, {required bool isStartDate}) {
@@ -137,13 +149,13 @@ class MonitoringViewModel with ChangeNotifier {
       _endDate = newDate;
     }
     notifyListeners();
-    _runFilter();
+    fetchAndProcessData();
   }
 
   void updateInterval(Duration newInterval) {
     _selectedInterval = newInterval;
     notifyListeners();
-    _runFilter();
+    fetchAndProcessData();
   }
 
   void toggleSensorVisibility(String key) {
@@ -155,6 +167,7 @@ class MonitoringViewModel with ChangeNotifier {
 // =======================================================================
 // TOP-LEVEL FUNCTIONS
 // =======================================================================
+
 Future<Uint8List?> _generateExcelBytes(List<SensorData> data) async {
   final excel = Excel.createExcel();
   final Sheet sheet = excel['Data Monitoring'];
@@ -180,26 +193,18 @@ Future<Uint8List?> _generateExcelBytes(List<SensorData> data) async {
   return (fileBytes != null) ? Uint8List.fromList(fileBytes) : null;
 }
 
-class FilterParams {
-  final List<SensorData> rawData;
-  final DateTime startDate;
-  final DateTime endDate;
+class DownsamplingParams {
+  final List<SensorData> fetchedData;
   final Duration interval;
-  FilterParams(this.rawData, this.startDate, this.endDate, this.interval);
+  DownsamplingParams(this.fetchedData, this.interval);
 }
 
-List<SensorData> _processDataInBackground(FilterParams params) {
-  if (params.rawData.isEmpty) return [];
-  final start = DateTime(
-      params.startDate.year, params.startDate.month, params.startDate.day);
-  final end = DateTime(params.endDate.year, params.endDate.month,
-      params.endDate.day, 23, 59, 59);
-  final filtered = params.rawData.where((item) {
-    return !item.timestamp.isBefore(start) && !item.timestamp.isAfter(end);
-  }).toList();
+List<SensorData> _processDownsampling(DownsamplingParams params) {
+  if (params.fetchedData.isEmpty) return [];
+  final dataToProcess = params.fetchedData;
   final Map<int, List<SensorData>> buckets = {};
   final intervalMillis = params.interval.inMilliseconds;
-  for (var entry in filtered) {
+  for (var entry in dataToProcess) {
     final bucketKey =
         (entry.timestamp.millisecondsSinceEpoch / intervalMillis).floor();
     buckets.putIfAbsent(bucketKey, () => []).add(entry);
@@ -228,16 +233,16 @@ List<SensorData> _processDataInBackground(FilterParams params) {
 }
 
 // =======================================================================
-// UI / "TAMPILAN"
+// UI
 // =======================================================================
 
 class MonitoringPage extends StatelessWidget {
   const MonitoringPage({super.key});
-
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) => MonitoringViewModel(),
+      create: (context) =>
+          MonitoringViewModel(firebaseService: FirebaseService()),
       child: Consumer<MonitoringViewModel>(
         builder: (context, model, child) {
           return Scaffold(
@@ -257,12 +262,15 @@ class MonitoringPage extends StatelessWidget {
                   SizedBox(
                     height: 400,
                     child: model.isFetching
-                        ? const Center(child: CircularProgressIndicator())
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                                key: ValueKey('fetching')))
                         : Stack(
                             children: [
                               _LineChart(),
                               if (model.isFiltering)
                                 Container(
+                                  key: const ValueKey('filtering'),
                                   color: Colors.white.withOpacity(0.5),
                                   child: const Center(
                                       child: CircularProgressIndicator()),
@@ -278,7 +286,7 @@ class MonitoringPage extends StatelessWidget {
                   const SizedBox(height: 10),
                   if (!model.isFetching) _InteractiveLegend(),
                   const SizedBox(height: 20),
-                  _ExportButton(),
+                  const _ExportButton(),
                 ],
               ),
             ),
@@ -289,7 +297,7 @@ class MonitoringPage extends StatelessWidget {
   }
 }
 
-// --- Widget-widget kecil biar rapi ---
+// --- Widget-widget kecil lainnya ---
 
 class _FilterCard extends StatelessWidget {
   @override
@@ -318,7 +326,7 @@ class _FilterCard extends StatelessWidget {
 
 class _DatePickerButton extends StatelessWidget {
   final bool isStartDate;
-  const _DatePickerButton({required this.isStartDate});
+  const _DatePickerButton({super.key, required this.isStartDate});
 
   @override
   Widget build(BuildContext context) {
@@ -347,9 +355,8 @@ class _DatePickerButton extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey),
-              borderRadius: BorderRadius.circular(5),
-            ),
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(5)),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -377,17 +384,14 @@ class _IntervalSelector extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12.0),
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey),
-              borderRadius: BorderRadius.circular(5),
-            ),
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(5)),
             child: DropdownButton<Duration>(
               value: model.selectedInterval,
               underline: const SizedBox(),
               items: model.intervalOptions.entries.map((entry) {
                 return DropdownMenuItem<Duration>(
-                  value: entry.value,
-                  child: Text(entry.key),
-                );
+                    value: entry.value, child: Text(entry.key));
               }).toList(),
               onChanged: (Duration? newValue) {
                 if (newValue != null) {
@@ -406,7 +410,10 @@ class _LineChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final model = context.watch<MonitoringViewModel>();
-    final visibleLineBars = sensorConfigs
+
+    final List<LineChartBarData> allBars = [];
+
+    final actualBars = sensorConfigs
         .where((sensor) => model.visibleSensors[sensor.key] ?? false)
         .map((sensor) {
       return LineChartBarData(
@@ -420,68 +427,85 @@ class _LineChart extends StatelessWidget {
         barWidth: 2.5,
         dotData: const FlDotData(show: false),
       );
-    }).toList();
+    });
+    allBars.addAll(actualBars);
 
-    // --- FIXED: Memasukkan semua parameter ke dalam constructor LineChartData ---
     return LineChart(
       LineChartData(
-          lineBarsData: visibleLineBars,
-          titlesData: FlTitlesData(
-            leftTitles: AxisTitles(
-                sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 44,
-                    getTitlesWidget: (value, meta) => Text(meta.formattedValue,
-                        style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.black,
-                            fontWeight: FontWeight.bold)))),
-            bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 32,
-                    getTitlesWidget: (value, meta) {
-                      final date =
-                          DateTime.fromMillisecondsSinceEpoch(value.toInt());
-                      String text;
-                      if (model.endDate.difference(model.startDate).inDays >
-                          2) {
-                        text = DateFormat('d MMM').format(date);
-                      } else {
-                        text = DateFormat('HH:mm').format(date);
-                      }
-                      return Padding(
-                          padding: const EdgeInsets.only(top: 8.0),
-                          child: Text(
-                            text,
-                            style: const TextStyle(
-                                fontSize: 10,
-                                color: Colors.black,
-                                fontWeight: FontWeight.bold),
-                          ));
-                    })),
-            topTitles:
-                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            rightTitles:
-                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          ),
-          gridData: const FlGridData(show: true),
-          borderData: FlBorderData(
-              show: true,
-              border: Border.all(color: const Color(0xff37434d), width: 1)),
-          lineTouchData: LineTouchData(touchTooltipData:
-              LineTouchTooltipData(getTooltipItems: (touchedSpots) {
-            return touchedSpots.map((spot) {
-              final allBars = sensorConfigs
-                  .where((s) => model.visibleSensors[s.key]!)
+        // --- DIBALIKKAN KE VERSI SEBELUMNYA ---
+        lineTouchData: LineTouchData(
+          handleBuiltInTouches:
+              true, // Zoom (dua jari) dan Tooltip (satu jari) aktif bersamaan
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots
+                  .map((spot) {
+                    final allVisibleBars = sensorConfigs
+                        .where((s) => model.visibleSensors[s.key]!)
+                        .toList();
+                    if (spot.bar.dashArray == null &&
+                        spot.barIndex < allVisibleBars.length) {
+                      final sensor = allVisibleBars[spot.barIndex];
+                      return LineTooltipItem(
+                        '${sensor.label}\n${spot.y.toStringAsFixed(2)}',
+                        TextStyle(
+                            color: sensor.color, fontWeight: FontWeight.bold),
+                      );
+                    }
+                    return null;
+                  })
+                  .whereType<LineTooltipItem>()
                   .toList();
-              final sensor = allBars[spot.barIndex];
-              return LineTooltipItem(
-                '${sensor.label}\n${spot.y.toStringAsFixed(2)}',
-                TextStyle(color: sensor.color, fontWeight: FontWeight.bold),
-              );
-            }).toList();
-          }))),
+            },
+          ),
+        ),
+        clipData: const FlClipData.all(),
+        // ------------------------------------
+
+        lineBarsData: allBars,
+        titlesData: FlTitlesData(
+          leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 44,
+                  getTitlesWidget: (value, meta) => Text(meta.formattedValue,
+                      style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold)))),
+          bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 32,
+                  getTitlesWidget: (value, meta) {
+                    final date =
+                        DateTime.fromMillisecondsSinceEpoch(value.toInt());
+                    String text;
+                    if (model.endDate.difference(model.startDate).inDays > 2) {
+                      text = DateFormat('d MMM').format(date);
+                    } else {
+                      text = DateFormat('HH:mm').format(date);
+                    }
+                    return Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          text,
+                          style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold),
+                        ));
+                  })),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        ),
+        gridData: const FlGridData(show: true),
+        borderData: FlBorderData(
+            show: true,
+            border: Border.all(color: const Color(0xff37434d), width: 1)),
+      ),
     );
   }
 }
@@ -495,47 +519,53 @@ class _InteractiveLegend extends StatelessWidget {
       child: Wrap(
         spacing: 16.0,
         runSpacing: 8.0,
-        children: sensorConfigs.map((sensor) {
-          final isVisible = model.visibleSensors[sensor.key] ?? false;
-          return InkWell(
-            onTap: () => context
-                .read<MonitoringViewModel>()
-                .toggleSensorVisibility(sensor.key),
-            borderRadius: BorderRadius.circular(4.0),
-            child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                      width: 12,
-                      height: 12,
-                      color: isVisible
-                          ? sensor.color
-                          : Colors.grey.withOpacity(0.5)),
-                  const SizedBox(width: 8),
-                  Text(
-                    sensor.label,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isVisible ? Colors.black : Colors.grey,
-                      decoration: isVisible
-                          ? TextDecoration.none
-                          : TextDecoration.lineThrough,
-                    ),
-                  )
-                ],
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          ...sensorConfigs.map((sensor) {
+            final isVisible = model.visibleSensors[sensor.key] ?? false;
+            return InkWell(
+              onTap: () => context
+                  .read<MonitoringViewModel>()
+                  .toggleSensorVisibility(sensor.key),
+              borderRadius: BorderRadius.circular(4.0),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                        width: 12,
+                        height: 12,
+                        color: isVisible
+                            ? sensor.color
+                            : Colors.grey.withOpacity(0.5)),
+                    const SizedBox(width: 8),
+                    Text(
+                      sensor.label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isVisible ? Colors.black : Colors.grey,
+                        decoration: isVisible
+                            ? TextDecoration.none
+                            : TextDecoration.lineThrough,
+                      ),
+                    )
+                  ],
+                ),
               ),
-            ),
-          );
-        }).toList(),
+            );
+          }),
+          // --- TOMBOL MODE DIHAPUS ---
+        ],
       ),
     );
   }
 }
 
 class _ExportButton extends StatefulWidget {
+  const _ExportButton();
+
   @override
   __ExportButtonState createState() => __ExportButtonState();
 }
@@ -551,9 +581,7 @@ class __ExportButtonState extends State<_ExportButton> {
           const SnackBar(content: Text("Tidak ada data untuk diekspor.")));
       return;
     }
-
     setState(() => _isExporting = true);
-
     try {
       final fileBytes = await compute(_generateExcelBytes, data);
       if (fileBytes == null) throw Exception("Gagal membuat file Excel.");
@@ -579,7 +607,6 @@ class __ExportButtonState extends State<_ExportButton> {
 
   @override
   Widget build(BuildContext context) {
-    // Pakai context.watch biar rebuild pas data berubah
     final model = context.watch<MonitoringViewModel>();
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,

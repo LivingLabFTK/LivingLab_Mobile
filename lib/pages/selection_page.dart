@@ -47,7 +47,7 @@ class SelectionPage extends StatelessWidget {
                 icon: Icons.local_florist_outlined,
                 title: 'Smart Garden',
                 onTap: () {
-                  Navigator.pushReplacement(
+                  Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const Dashboard()),
                   );

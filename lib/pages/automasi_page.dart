@@ -92,16 +92,25 @@ class _AutomasiPageState extends State<AutomasiPage> {
 
     try {
       await _dataRef.update({pumpName: !currentStatus});
+      if (mounted) {
+        setState(() {
+          lastUpdate =
+              "Update: ${DateFormat('HH:mm:ss').format(DateTime.now())}";
+        });
+      }
       print("Status $pumpName updated to ${!currentStatus}");
     } catch (error) {
       print("Failed to update $pumpName: $error");
-      setState(() {
-        isUpdating = false;
-      });
+      if (mounted) {
+        setState(() {
+          isUpdating = false;
+        });
+      }
     }
   }
 
-  Widget _buildPumpCard(String title, bool status, VoidCallback onToggle) {
+  Widget _buildPumpCard(
+      String title, bool status, VoidCallback onToggle, String description) {
     return Card(
       elevation: 3.0,
       margin: const EdgeInsets.symmetric(vertical: 8.0),
@@ -132,6 +141,12 @@ class _AutomasiPageState extends State<AutomasiPage> {
                     status ? 'Hidup' : 'Mati',
                     style:
                         const TextStyle(fontSize: 20, color: AppColors.primary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.text.withOpacity(0.7)),
                   ),
                 ],
               ),
@@ -183,7 +198,6 @@ class _AutomasiPageState extends State<AutomasiPage> {
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(15.0)),
             color: mode == "AUTO" ? Colors.grey[300] : null,
-            // Warna abu-abu jika mode AUTO
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Row(
@@ -225,16 +239,19 @@ class _AutomasiPageState extends State<AutomasiPage> {
             'Pompa Irigasi',
             pompaIrigasi,
             () => _togglePumpStatus('pompa_irigasi', pompaIrigasi),
+            'Mengairi tanaman',
           ),
           _buildPumpCard(
             'Pompa Kuras',
             pompaKuras,
             () => _togglePumpStatus('pompa_kuras', pompaKuras),
+            'Membersihkan tangki',
           ),
           _buildPumpCard(
             'Pompa Pengaduk',
             pompaPengaduk,
             () => _togglePumpStatus('pompa_pengaduk', pompaPengaduk),
+            'Mengaduk nutrisi',
           ),
         ],
       ),

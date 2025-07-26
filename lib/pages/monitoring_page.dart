@@ -1,8 +1,5 @@
-// lib/pages/monitoring_page.dart
-
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:excel/excel.dart' hide Border;
 import 'package:firebase_core/firebase_core.dart';
@@ -12,17 +9,18 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hydrohealth/utils/colors.dart';
 import 'package:intl/intl.dart';
-import 'package:lottie/lottie.dart'; // Pastikan import ini ada
+import 'package:lottie/lottie.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 // =======================================================================
-// DATA MODELS & CONFIGS (Tidak ada perubahan)
+// DATA MODELS & CONFIGS
 // =======================================================================
 class SensorData {
   final DateTime timestamp;
   final Map<String, dynamic> values;
+
   SensorData({required this.timestamp, required this.values});
 }
 
@@ -30,6 +28,7 @@ class SensorConfig {
   final String key;
   final String label;
   final Color color;
+
   SensorConfig({required this.key, required this.label, required this.color});
 }
 
@@ -37,13 +36,15 @@ final List<SensorConfig> sensorConfigs = [
   SensorConfig(key: 'tds1_ppm', label: 'TDS 1', color: Colors.red),
   SensorConfig(key: 'tds2_ppm', label: 'TDS 2', color: Colors.orange),
   SensorConfig(key: 'turbidity_ntu', label: 'Kekeruhan', color: Colors.green),
-  SensorConfig(key: 'level1_percent', label: 'Water Level 1', color: Colors.cyan),
-  SensorConfig(key: 'level2_percent', label: 'Water Level 2', color: Colors.blue),
+  SensorConfig(
+      key: 'level1_percent', label: 'Water Level 1', color: Colors.cyan),
+  SensorConfig(
+      key: 'level2_percent', label: 'Water Level 2', color: Colors.blue),
   SensorConfig(key: 'flow_rate_lpm', label: 'Aliran', color: Colors.teal),
 ];
 
 // =======================================================================
-// FIREBASE SERVICE (Tidak ada perubahan)
+// FIREBASE SERVICE
 // =======================================================================
 class FirebaseService {
   final DatabaseReference _dbRef = FirebaseDatabase.instanceFor(
@@ -51,6 +52,7 @@ class FirebaseService {
     databaseURL:
         'https://hydrohealth-project-9cf6c-default-rtdb.asia-southeast1.firebasedatabase.app/',
   ).ref('Hydroponic_Data');
+
   Future<List<SensorData>> fetchSensorDataForDateRange(
       DateTime startDate, DateTime endDate) async {
     final List<SensorData> fetchedData = [];
@@ -82,36 +84,45 @@ class FirebaseService {
 }
 
 // =======================================================================
-// VIEWMODEL (Tidak ada perubahan)
+// VIEWMODEL
 // =======================================================================
 class MonitoringViewModel with ChangeNotifier {
   final FirebaseService _firebaseService;
   bool _isDisposed = false;
   List<SensorData> _displayData = [];
+
   List<SensorData> get displayData => _displayData;
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 7));
+
   DateTime get startDate => _startDate;
   DateTime _endDate = DateTime.now();
+
   DateTime get endDate => _endDate;
   bool _isFetching = true;
+
   bool get isFetching => _isFetching;
   bool _isFiltering = false;
+
   bool get isFiltering => _isFiltering;
   late Map<String, bool> _visibleSensors;
+
   Map<String, bool> get visibleSensors => _visibleSensors;
   late Duration _selectedInterval;
+
   Duration get selectedInterval => _selectedInterval;
   final Map<String, Duration> intervalOptions = {
     '5 Menit': const Duration(minutes: 5),
     '1 Jam': const Duration(hours: 1),
     '1 Hari': const Duration(days: 1),
   };
+
   MonitoringViewModel({required FirebaseService firebaseService})
       : _firebaseService = firebaseService {
     _selectedInterval = intervalOptions.values.first;
     _visibleSensors = {for (var sensor in sensorConfigs) sensor.key: true};
     fetchAndProcessData();
   }
+
   @override
   void dispose() {
     _isDisposed = true;
@@ -167,7 +178,7 @@ class MonitoringViewModel with ChangeNotifier {
 }
 
 // =======================================================================
-// TOP-LEVEL FUNCTIONS (Tidak ada perubahan)
+// TOP-LEVEL FUNCTIONS
 // =======================================================================
 Future<Uint8List?> _generateExcelBytes(List<SensorData> data) async {
   final excel = Excel.createExcel();
@@ -197,6 +208,7 @@ Future<Uint8List?> _generateExcelBytes(List<SensorData> data) async {
 class DownsamplingParams {
   final List<SensorData> fetchedData;
   final Duration interval;
+
   DownsamplingParams(this.fetchedData, this.interval);
 }
 
@@ -239,6 +251,7 @@ List<SensorData> _processDownsampling(DownsamplingParams params) {
 
 class MonitoringPage extends StatelessWidget {
   const MonitoringPage({super.key});
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
@@ -272,8 +285,6 @@ class MonitoringPage extends StatelessWidget {
                   if (model.isFetching)
                     SizedBox(
                       height: 400,
-                      // --- PERUBAHAN UTAMA DI SINI ---
-                      // Ganti nama file sesuai dengan file lo
                       child: Center(
                           child: Lottie.asset('assets/Walking Pothos.json',
                               width: 200)),
@@ -305,12 +316,12 @@ class MonitoringPage extends StatelessWidget {
                               const Center(child: CircularProgressIndicator()),
                           ]),
                         ),
+                        const SizedBox(height: 10),
+                        if (!model.isFetching) _InteractiveLegend(),
+                        const SizedBox(height: 20),
+                        const _ExportButton(),
                       ],
                     ),
-                  const SizedBox(height: 10),
-                  if (!model.isFetching) _InteractiveLegend(),
-                  const SizedBox(height: 20),
-                  const _ExportButton(),
                 ],
               ),
             ),
@@ -321,9 +332,9 @@ class MonitoringPage extends StatelessWidget {
   }
 }
 
-// --- WIDGET-WIDGET KECIL LAINNYA ---
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -379,7 +390,9 @@ class _FilterCard extends StatelessWidget {
 
 class _DatePickerButton extends StatelessWidget {
   final bool isStartDate;
+
   const _DatePickerButton({super.key, required this.isStartDate});
+
   @override
   Widget build(BuildContext context) {
     final model = context.watch<MonitoringViewModel>();
@@ -460,7 +473,9 @@ class _IntervalSelector extends StatelessWidget {
 
 class _LineChart extends StatelessWidget {
   final List<SensorConfig> sensorsToShow;
+
   const _LineChart({required this.sensorsToShow});
+
   @override
   Widget build(BuildContext context) {
     final model = context.watch<MonitoringViewModel>();
@@ -584,7 +599,7 @@ class _InteractiveLegend extends StatelessWidget {
                       height: 12,
                       color: isVisible
                           ? sensor.color
-                          : Colors.grey.withOpacity(0.5)),
+                          : Colors.grey.withValues(alpha: 0.5)),
                   const SizedBox(width: 8),
                   Text(
                     sensor.label,
@@ -615,6 +630,7 @@ class _ExportButton extends StatefulWidget {
 
 class __ExportButtonState extends State<_ExportButton> {
   bool _isExporting = false;
+
   Future<void> _exportToExcel(
       BuildContext context, List<SensorData> data) async {
     if (_isExporting) return;

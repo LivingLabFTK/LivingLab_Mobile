@@ -1,5 +1,3 @@
-// lib/pages/dashboard_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:hydrohealth/content/profile.dart';
 import 'package:hydrohealth/pages/automasi_page.dart';

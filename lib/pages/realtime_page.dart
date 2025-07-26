@@ -1,9 +1,7 @@
-// lib/pages/realtime_page.dart
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // Pastikan Anda sudah punya package intl
+import 'package:intl/intl.dart';
 
 import '../utils/colors.dart';
 
@@ -15,7 +13,6 @@ class RealtimePage extends StatefulWidget {
 }
 
 class _RealtimePageState extends State<RealtimePage> {
-  // Variabel untuk menampung setiap nilai sensor
   String tds1 = '...';
   String tds2 = '...';
   String turbidity = '...';
@@ -24,19 +21,15 @@ class _RealtimePageState extends State<RealtimePage> {
   String flowRate = '...';
   String lastUpdate = '...';
 
-  // Pointer ke database
   late DatabaseReference _dataRef;
 
   @override
   void initState() {
     super.initState();
-    // 1. Membuat path dinamis berdasarkan tanggal hari ini
     _initializeDbRef();
-    // 2. Mendengarkan data dari path yang sudah benar
     _listenToRealtimeDatabase();
   }
 
-  // Fungsi untuk mendapatkan path data hari ini
   void _initializeDbRef() {
     final String todayPath = DateFormat('yyyy-MM-dd').format(DateTime.now());
     _dataRef = FirebaseDatabase.instanceFor(
@@ -47,8 +40,6 @@ class _RealtimePageState extends State<RealtimePage> {
   }
 
   void _listenToRealtimeDatabase() {
-    // 3. Mengambil 1 data terakhir dari path tanggal hari ini
-    // Kita urutkan berdasarkan key (yaitu waktu "HH-mm") untuk mendapatkan yg terbaru
     _dataRef.orderByKey().limitToLast(1).onValue.listen((event) {
       if (!mounted || event.snapshot.value == null) {
         setState(() {
@@ -57,9 +48,8 @@ class _RealtimePageState extends State<RealtimePage> {
         return;
       }
 
-      // 4. Parsing data dengan struktur yang benar
       final data = Map<String, dynamic>.from(event.snapshot.value as Map);
-      final timeKey = data.keys.first; // Ini adalah key waktu, cth: "03-57"
+      final timeKey = data.keys.first;
       final latestData = Map<String, dynamic>.from(data[timeKey]);
 
       setState(() {
@@ -70,7 +60,6 @@ class _RealtimePageState extends State<RealtimePage> {
         level2 = (latestData['level2_percent'] ?? 'N/A').toString();
         flowRate = (latestData['flow_rate_lpm'] ?? 'N/A').toString();
 
-        // Menampilkan waktu update terakhir dari timestamp
         final timestamp = DateTime.tryParse(latestData['timestamp_iso'] ?? '');
         if (timestamp != null) {
           lastUpdate = "Update: ${DateFormat('HH:mm:ss').format(timestamp)}";
@@ -80,12 +69,11 @@ class _RealtimePageState extends State<RealtimePage> {
       setState(() {
         lastUpdate = "Gagal memuat data";
       });
-      // Tampilkan error di console untuk debugging
+
       print("Error listening to database: $error");
     });
   }
 
-  // Widget template untuk setiap kartu sensor (tidak ada perubahan di sini)
   Widget _buildSensorCard(
       String title, String value, String unit, IconData icon) {
     return Card(

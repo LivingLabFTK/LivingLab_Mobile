@@ -69,7 +69,7 @@ class _AutomasiPageState extends State<AutomasiPage> {
 
       final data = Map<String, dynamic>.from(event.snapshot.value as Map);
       setState(() {
-        mode = (data['mode'] ?? 'N/A').toString();
+        mode = (data['mode'] ?? '...').toString();
         pompaIrigasi = (data['pompa_irigasi'] ?? false) as bool;
         pompaPengaduk = (data['pompa_pengaduk'] ?? false) as bool;
         pompaKuras = (data['pompa_kuras'] ?? false) as bool;
@@ -109,19 +109,45 @@ class _AutomasiPageState extends State<AutomasiPage> {
     }
   }
 
+  Future<void> _toggleMode(bool isAuto) async {
+    if (isUpdating || !isAuthenticated) return;
+    setState(() {
+      isUpdating = true;
+    });
+
+    try {
+      await _dataRef.update({'mode': isAuto});
+      if (mounted) {
+        setState(() {
+          lastUpdate =
+              "Update: ${DateFormat('HH:mm:ss').format(DateTime.now())}";
+        });
+      }
+      print("Mode updated to ${isAuto ? 'Auto' : 'Manual'}");
+    } catch (error) {
+      print("Failed to update mode: $error");
+      if (mounted) {
+        setState(() {
+          isUpdating = false;
+        });
+      }
+    }
+  }
+
   Widget _buildPumpCard(
       String title, bool status, VoidCallback onToggle, String description) {
     return Card(
       elevation: 3.0,
       margin: const EdgeInsets.symmetric(vertical: 8.0),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
+      color: mode == 'true' ? Colors.grey[300] : null,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
           children: [
             Icon(
               status ? Icons.power : Icons.power_off,
-              color: AppColors.primary,
+              color: mode == 'true' ? Colors.grey : AppColors.primary,
               size: 40,
             ),
             const SizedBox(width: 16),
@@ -131,29 +157,34 @@ class _AutomasiPageState extends State<AutomasiPage> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
-                        color: AppColors.text),
+                        color: mode == 'true' ? Colors.grey : AppColors.text),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     status ? 'Hidup' : 'Mati',
-                    style:
-                        const TextStyle(fontSize: 20, color: AppColors.primary),
+                    style: TextStyle(
+                        fontSize: 20,
+                        color:
+                            mode == 'true' ? Colors.grey : AppColors.primary),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     description,
                     style: TextStyle(
-                        fontSize: 12, color: AppColors.text.withOpacity(0.7)),
+                        fontSize: 12,
+                        color: mode == 'true'
+                            ? Colors.grey
+                            : AppColors.text.withOpacity(0.7)),
                   ),
                 ],
               ),
             ),
             Switch(
               value: status,
-              onChanged: (isUpdating || !isAuthenticated)
+              onChanged: (isUpdating || !isAuthenticated || mode == 'true')
                   ? null
                   : (value) {
                       onToggle();
@@ -196,15 +227,18 @@ class _AutomasiPageState extends State<AutomasiPage> {
             elevation: 3.0,
             margin: const EdgeInsets.symmetric(vertical: 8.0),
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15.0)),
-            color: mode == "AUTO" ? Colors.grey[300] : null,
+              borderRadius: BorderRadius.circular(15.0),
+              side: mode == 'true'
+                  ? const BorderSide(color: Colors.green, width: 2)
+                  : BorderSide.none,
+            ),
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Row(
                 children: [
                   Icon(
                     Icons.settings,
-                    color: mode == "AUTO" ? Colors.grey : AppColors.primary,
+                    color: mode == 'true' ? Colors.green : Colors.grey,
                     size: 40,
                   ),
                   const SizedBox(width: 16),
@@ -221,15 +255,23 @@ class _AutomasiPageState extends State<AutomasiPage> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          mode,
+                          mode == 'true' ? 'Auto' : 'Manual',
                           style: TextStyle(
                               fontSize: 20,
-                              color: mode == "AUTO"
-                                  ? Colors.grey
-                                  : AppColors.primary),
+                              color:
+                                  mode == 'true' ? Colors.green : Colors.grey),
                         ),
                       ],
                     ),
+                  ),
+                  Switch(
+                    value: mode == 'true',
+                    onChanged: (isUpdating || !isAuthenticated)
+                        ? null
+                        : (value) async {
+                            await _toggleMode(value);
+                          },
+                    activeColor: AppColors.primary,
                   ),
                 ],
               ),

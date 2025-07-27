@@ -136,6 +136,7 @@ class MonitoringViewModel with ChangeNotifier {
   }
 
   Future<void> fetchAndProcessData() async {
+    print("Starting fetchAndProcessData - isFetching: $_isFetching");
     if (!_isFetching) {
       _isFiltering = true;
       _safeNotifyListeners();
@@ -151,6 +152,8 @@ class MonitoringViewModel with ChangeNotifier {
     } finally {
       _isFetching = false;
       _isFiltering = false;
+      print(
+          "Fetch completed - isFetching: $_isFetching, displayData length: ${_displayData.length}");
       _safeNotifyListeners();
     }
   }
@@ -282,6 +285,8 @@ class MonitoringPage extends StatelessWidget {
                 children: [
                   _FilterCard(),
                   const SizedBox(height: 20),
+                  _ExportButton(),
+                  const SizedBox(height: 20),
                   if (model.isFetching)
                     SizedBox(
                       height: 400,
@@ -297,6 +302,7 @@ class MonitoringPage extends StatelessWidget {
                       children: [
                         const Text("Grafik Sensor Utama",
                             style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 20),
                         SizedBox(
                           height: 300,
                           child: Stack(children: [
@@ -308,6 +314,7 @@ class MonitoringPage extends StatelessWidget {
                         const SizedBox(height: 20),
                         const Text("Grafik Level Air (%)",
                             style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 20),
                         SizedBox(
                           height: 300,
                           child: Stack(children: [
@@ -318,8 +325,7 @@ class MonitoringPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 10),
                         if (!model.isFetching) _InteractiveLegend(),
-                        const SizedBox(height: 20),
-                        const _ExportButton(),
+                        const SizedBox(height: 70),
                       ],
                     ),
                 ],
@@ -372,6 +378,7 @@ class _FilterCard extends StatelessWidget {
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
+            const SizedBox(height: 10),
             const Row(
               children: [
                 Expanded(child: _DatePickerButton(isStartDate: true)),
@@ -666,30 +673,28 @@ class __ExportButtonState extends State<_ExportButton> {
   @override
   Widget build(BuildContext context) {
     final model = context.watch<MonitoringViewModel>();
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        ElevatedButton.icon(
-          onPressed: (_isExporting || model.isFiltering)
-              ? null
-              : () => _exportToExcel(context, model.displayData),
-          icon: _isExporting
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2.0,
-                  ))
-              : const Icon(Icons.grid_on),
-          label: const Text('Export Excel'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: Colors.grey,
-          ),
+    return Container(
+      alignment: Alignment.centerRight,
+      child: ElevatedButton.icon(
+        onPressed: (_isExporting || model.isFiltering)
+            ? null
+            : () => _exportToExcel(context, model.displayData),
+        icon: _isExporting
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.0,
+                ))
+            : const Icon(Icons.grid_on),
+        label: const Text('Export Excel'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.green,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.grey,
         ),
-      ],
+      ),
     );
   }
 }
